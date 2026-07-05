@@ -22,6 +22,11 @@ from __future__ import annotations
 from collections.abc import Iterator
 from dataclasses import dataclass
 
+# IMPORTANT: this import MUST come before any ``app.*`` import. It points
+# DATABASE_URL at this xdist worker's own test DB (and creates + migrates it),
+# so the app binds to the correct per-worker database when first imported below.
+import tests._worker_db  # noqa: F401  (import for its import-time side effect)
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text

@@ -10,13 +10,19 @@ from __future__ import annotations
 from app.core.config import settings
 
 
+import re
+
+# Accept the base test DB (``…_test``) and per-xdist-worker DBs (``…_test_gw0``).
+_TEST_DB_RE = re.compile(r"_test(_gw\d+)?$")
+
+
 def assert_test_database() -> None:
     url = settings.database_url
     # crude but sufficient: the DB name is the path segment after the last '/'
     db_name = url.rsplit("/", 1)[-1].split("?", 1)[0]
-    if not db_name.endswith("_test"):
+    if not _TEST_DB_RE.search(db_name):
         raise RuntimeError(
             f"Refusing to run the destructive test suite against database "
             f"'{db_name}'. Point DATABASE_URL at a *_test database "
-            f"(see infra/run-tests.sh)."
+            f"(see backend/scripts/run-tests.sh)."
         )
