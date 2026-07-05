@@ -204,6 +204,16 @@ class SocietyService:
                 self._repo.add_module(row)
                 existing[alloc.module_key] = row
             else:
+                # No-op: nothing to change → skip the write AND the audit so an
+                # idempotent re-POST doesn't spam module.toggled rows (docs/PF §12).
+                if row.enabled == alloc.enabled and row.config == alloc.config:
+                    if alloc.enabled:
+                        enabled_keys.add(alloc.module_key)
+                    else:
+                        enabled_keys.discard(alloc.module_key)
+                    results.append(row)
+                    continue
+
                 turning_on = alloc.enabled and not row.enabled
                 row.enabled = alloc.enabled
                 row.config = alloc.config

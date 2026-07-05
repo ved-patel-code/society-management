@@ -43,6 +43,10 @@ _GENERIC_LOGIN_ERROR = "Invalid email or password."
 # The platform-actor portal a role-less super_admin lands in.
 _PLATFORM_PORTAL = "platform"
 
+# A pre-computed Argon2id hash used to equalize verify timing on reject branches
+# where there is no real user hash to check against (anti-enumeration, docs/PF §4).
+_DUMMY_HASH = hash_password("timing-equalizer-not-a-real-password")
+
 
 class LoginResult:
     """Value object returned by :meth:`login` (the router shapes the response)."""
@@ -97,10 +101,11 @@ class AuthService:
         normalized = normalize_email(email)
         user = self._repo.find_user_by_email(normalized)
 
-        # Verify the password even when the user is missing would require a dummy
-        # hash; passlib's argon2 verify against a non-existent hash isn't available,
-        # so we branch — but every failure path yields the identical error/shape.
+        # Missing/inactive user: run a dummy verify so the reject branch takes
+        # comparable Argon2id time to a real password check (anti-enumeration by
+        # timing — docs/PF §4). Then raise the identical generic error.
         if user is None or not user.is_active:
+            verify_password(password, _DUMMY_HASH)
             raise AuthenticationError(_GENERIC_LOGIN_ERROR)
 
         if not verify_password(password, user.password_hash):
@@ -113,6 +118,8 @@ class AuthService:
             # super-admin, whose authority is the is_platform_super_admin flag
             # (it holds no user_roles by design). It lands in the platform portal.
             if not user.is_platform_super_admin:
+                # Equalize timing with the real-verify path (docs/PF §4).
+                verify_password(password, _DUMMY_HASH)
                 raise AuthenticationError(_GENERIC_LOGIN_ERROR)
             active_society_id = None
             available_portals = [_PLATFORM_PORTAL]
@@ -199,16 +206,19 @@ class AuthService:
             normalized = normalize_email(email)
         except ValidationError:
             # Malformed address: silently succeed (no enumeration, no email).
+            self._equalize_forgot_timing()
             return
 
         user = self._repo.find_user_by_email(normalized)
         if user is None or not user.is_active:
+            self._equalize_forgot_timing()
             return
 
         # Only role-bearing accounts (real society members) get a reset. The
         # super-admin recovers via the seed command, not forgot-password.
         _, role_ids = self._repo.active_society_and_role_ids(user.id)
         if not role_ids:
+            self._equalize_forgot_timing()
             return
 
         temp_password = self._generate_temp_password()
@@ -216,17 +226,22 @@ class AuthService:
             minutes=settings.password_reset_ttl_minutes
         )
 
+        # Hash ONCE and reuse the same digest for both the reset row and the
+        # user's credential — two hashes would waste a second Argon2 pass and
+        # yield two salts for the same secret.
+        temp_password_hash = hash_password(temp_password)
+
         self._repo.add_password_reset(
             PasswordReset(
                 user_id=user.id,
-                temp_password_hash=hash_password(temp_password),
+                temp_password_hash=temp_password_hash,
                 expires_at=expires_at,
             )
         )
         # The temp password IS the new login credential; force a change on use.
         self._repo.set_password(
             user,
-            password_hash=hash_password(temp_password),
+            password_hash=temp_password_hash,
             password_state="must_change",
         )
         # Revoke live sessions so a prior attacker session can't outlive the reset.
@@ -247,6 +262,13 @@ class AuthService:
         )
 
     # --- helpers ---------------------------------------------------------
+
+    @staticmethod
+    def _equalize_forgot_timing() -> None:
+        """Burn one Argon2 hash on the no-op path so an unknown/inactive/role-less
+        address costs comparably to the real reset (which hashes + writes + mails),
+        blunting the timing enumeration signal (docs/PF §4). One hash is enough."""
+        hash_password("timing-equalizer-not-a-real-password")
 
     @staticmethod
     def _generate_temp_password() -> str:

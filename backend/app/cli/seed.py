@@ -16,6 +16,7 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.common.validators import validate_password_policy
 from app.core.config import settings
 from app.core.db import SessionLocal
 from app.core.registry import MODULE_REGISTRY
@@ -90,6 +91,9 @@ def seed_super_admin(session: Session) -> bool:
             "SUPERADMIN_EMAIL / SUPERADMIN_PASSWORD not set — skipping super_admin seed."
         )
         return False
+
+    # Reject a weak seed password up front with a clear policy error (docs/PF §4).
+    validate_password_policy(settings.superadmin_password)
 
     user = session.execute(
         select(User).where(User.email == email)

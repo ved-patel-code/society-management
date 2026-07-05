@@ -77,6 +77,41 @@ class UserRepository:
         ).all()
         return len(rows)
 
+    def admin_society_ids(self, user_id: int) -> list[int]:
+        """Societies where ``user_id`` holds the ``society_admin`` role.
+
+        Used before deactivating a user to know which societies to re-check for an
+        emptied admin set (warn-but-allow). Uses the seeded admin key directly to
+        avoid coupling the repository to bootstrap constants at import time.
+        """
+        rows = self._session.execute(
+            select(UserRole.society_id)
+            .join(Role, Role.id == UserRole.role_id)
+            .where(UserRole.user_id == user_id, Role.key == "society_admin")
+            .distinct()
+        ).all()
+        return [r[0] for r in rows]
+
+    def count_role_holders(self, society_id: int, role_key: str) -> int:
+        """How many active users still hold ``role_key`` in ``society_id``.
+
+        Used to detect when a society is about to lose its last admin (docs/PF —
+        warn-but-allow). Counts only active users so a deactivated holder does not
+        mask an emptied admin set.
+        """
+        rows = self._session.execute(
+            select(UserRole.user_id)
+            .join(Role, Role.id == UserRole.role_id)
+            .join(User, User.id == UserRole.user_id)
+            .where(
+                UserRole.society_id == society_id,
+                Role.key == role_key,
+                User.is_active.is_(True),
+            )
+            .distinct()
+        ).all()
+        return len(rows)
+
     def add_user_role(self, user_role: UserRole) -> UserRole:
         self._session.add(user_role)
         self._session.flush()  # assign PK within the txn (no commit)

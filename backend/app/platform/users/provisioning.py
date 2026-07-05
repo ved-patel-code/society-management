@@ -25,15 +25,19 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.common.errors import ConflictError, NotFoundError, ValidationError
+from app.common.errors import ConflictError, NotFoundError
 from app.platform.audit.service import AuditService
 from app.platform.auth.token_service import TokenService
+from app.platform.bootstrap import SOCIETY_ADMIN
 from app.platform.models import User, UserRole
 from app.platform.users.repository import UserRepository
 
 
 class UserProvisioningService:
     """Account provisioning + access lifecycle (see the wave-2 contract)."""
+
+    # The role whose emptying leaves a society leaderless (warn-but-allow).
+    _ADMIN_ROLE_KEY = SOCIETY_ADMIN.key
 
     def __init__(self, session: Session) -> None:
         self._session = session
@@ -166,6 +170,7 @@ class UserProvisioningService:
             )
 
         self._repo.delete_user_role(user_role)
+        self._session.flush()
         TokenService(self._session).revoke_all_for_user(user.id)
 
         self._audit.record(
@@ -176,6 +181,11 @@ class UserProvisioningService:
             entity_id=user.id,
             before={"role_key": role_key, "role_id": role.id},
         )
+
+        # Warn-but-allow: if this drops the society's last active admin, record a
+        # distinct audit event so the emptied-admin state is visible in the trail
+        # (docs/PF — no hard block; super-admin can re-provision / hand over).
+        self._warn_if_admin_emptied(society_id, role_key, actor_user_id)
 
     # --- deactivation ------------------------------------------------------
 
@@ -189,6 +199,12 @@ class UserProvisioningService:
         user = self._require_user(user_id)
         was_active = user.is_active
 
+        # Societies where this (currently active) user is an admin — captured
+        # BEFORE deactivation so the emptied-admin check below is accurate.
+        admin_societies = (
+            self._repo.admin_society_ids(user.id) if was_active else []
+        )
+
         user.is_active = False
         self._session.flush()
         TokenService(self._session).revoke_all_for_user(user.id)
@@ -201,6 +217,12 @@ class UserProvisioningService:
             before={"is_active": was_active},
             after={"is_active": False},
         )
+
+        # Warn-but-allow: deactivating the last active admin of any society.
+        for society_id in admin_societies:
+            self._warn_if_admin_emptied(
+                society_id, self._ADMIN_ROLE_KEY, actor_user_id
+            )
 
     # --- house access (SKELETON — docs/PF §8/§14.8) ------------------------
 
@@ -262,6 +284,29 @@ class UserProvisioningService:
                 "User not found.", details={"user_id": user_id}
             )
         return user
+
+    def _warn_if_admin_emptied(
+        self, society_id: int, role_key: str, actor_user_id: int | None
+    ) -> None:
+        """Record ``society.admin_emptied`` when a society loses its last active
+        ``society_admin`` (warn-but-allow — docs/PF, reviewed decision H2).
+
+        No hard block: the super-admin remains able to re-provision or hand over
+        the admin role. Only fires for the admin role, and only when the emptying
+        change (a removal/deactivation) has already been flushed, so the count
+        reflects the post-change state.
+        """
+        if role_key != self._ADMIN_ROLE_KEY:
+            return
+        if self._repo.count_role_holders(society_id, role_key) == 0:
+            self._audit.record(
+                action="society.admin_emptied",
+                actor_user_id=actor_user_id,
+                society_id=society_id,
+                entity_type="society",
+                entity_id=society_id,
+                after={"role_key": role_key, "active_holders": 0},
+            )
 
     def _create_user(
         self,

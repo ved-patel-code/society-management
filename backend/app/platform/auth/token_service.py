@@ -8,9 +8,9 @@ never persisted or logged (docs/PF §3/§4).
 Rotation & theft (docs/PF §14.5, resolved decision 5):
 - Every ``rotate`` revokes the presented token and issues a new one, linking the
   chain via ``replaced_by_id``.
-- Presenting a token that is ALREADY revoked (or that no longer exists) is the
-  theft signal: an attacker replaying a rotated-away token. We revoke the WHOLE
-  chain (every active token for that user) and raise ``AuthenticationError``.
+- Presenting a token that is ALREADY revoked is the theft signal: an attacker
+  replaying a rotated-away token. We revoke ALL of the user's active refresh
+  tokens (not a chain walk) and raise ``AuthenticationError``.
 
 No commit here — the request-scoped session commits once at the end (docs/PF §12).
 """
@@ -18,16 +18,19 @@ from __future__ import annotations
 
 from datetime import timedelta
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.common.errors import AuthenticationError
 from app.common.time import utcnow
 from app.core.config import settings
+from app.core.db import SessionLocal
 from app.core.security import (
     create_access_token,
     generate_refresh_token,
     hash_refresh_token,
 )
+from app.platform.audit.service import AuditService
 from app.platform.auth.repository import AuthRepository
 from app.platform.models import RefreshToken, User
 
@@ -91,13 +94,14 @@ class TokenService:
         now = utcnow()
 
         # Reuse of an already-revoked (rotated-away) token == theft signal.
-        # The chain revocation MUST survive the AuthenticationError we raise —
-        # but ``get_session`` rolls back on any exception. So we commit this one
-        # security side effect explicitly before raising (the sole, deliberate
-        # exception to "services never commit"; docs/PF §14.5).
+        # The revocation + its audit MUST survive the AuthenticationError we raise
+        # — but ``get_session`` rolls back on any exception, and committing the
+        # request session here would flush any OTHER pending state too. So we
+        # persist ONLY this security side effect in an isolated transaction on a
+        # fresh session, leaving the request session's pending writes untouched
+        # (docs/PF §14.5, §12).
         if current.revoked_at is not None:
-            self.revoke_all_for_user(current.user_id)
-            self._session.commit()
+            self._revoke_and_audit_reuse(current.user_id)
             raise AuthenticationError("Invalid or expired session.")
 
         if current.expires_at <= now:
@@ -155,6 +159,44 @@ class TokenService:
         self._session.flush()
 
     # --- helpers ---------------------------------------------------------
+
+    def _revoke_and_audit_reuse(self, user_id: int) -> None:
+        """Isolate the theft response in its own transaction (docs/PF §14.5).
+
+        Opens a FRESH session so revoking the user's active refresh tokens and
+        writing the ``auth.token_reuse_detected`` audit row commit together and
+        alone — no pending state from the request session rides along. The
+        request session is deliberately left uncommitted (its caller rolls back).
+        """
+        now = utcnow()
+        fresh = SessionLocal()
+        try:
+            tokens = list(
+                fresh.execute(
+                    select(RefreshToken).where(
+                        RefreshToken.user_id == user_id,
+                        RefreshToken.revoked_at.is_(None),
+                    )
+                ).scalars()
+            )
+            for token in tokens:
+                token.revoked_at = now
+            fresh.flush()
+            AuditService(fresh).record(
+                action="auth.token_reuse_detected",
+                actor_user_id=user_id,
+                society_id=None,
+                entity_type="user",
+                entity_id=user_id,
+                before=None,
+                after={
+                    "reason": "refresh_token_reuse",
+                    "revoked_count": len(tokens),
+                },
+            )
+            fresh.commit()
+        finally:
+            fresh.close()
 
     def _create_refresh_row(
         self, user_id: int, *, user_agent: str | None, ip: str | None
