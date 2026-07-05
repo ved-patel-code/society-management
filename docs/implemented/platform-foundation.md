@@ -7,9 +7,11 @@
 - **Phase 1 (shared core) — built.** Repo scaffold, Docker stack, pinned+vetted deps,
   core glue, all 11 models, initial migration, seed CLI, minimal AuditService, worker
   cleanup job, app factory + pre-stubbed routers. Green gate passing.
-- **Phase 2 (feature packages) — pending** (auth, societies+modules, users+provisioning,
-  roles/permissions, /me, tenant-gate wiring). Each agent fills its pre-stubbed router
-  and updates this index.
+- **Phase 2 (feature packages) — built.** roles/permissions, societies+module-allocation,
+  auth, users+provisioning, /me, tenant-scoping audit + gate tests. 16/16 tests pass;
+  full API surface live; e2e verified in Docker (login/rotation/theft, roles-by-copy,
+  dual-role, one-society-per-user, /me shell, cross-tenant isolation).
+- **Next:** Phase 3 code-review gate, then Phase 4 test gate.
 
 ## File map (Phase 1)
 - `app/core/config.py` — Settings from env (DB, JWT HS256, TTLs, email mode, MinIO, superadmin seed).
