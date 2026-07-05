@@ -7,8 +7,11 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# HS256 needs a key with at least as much entropy as the digest (32 bytes).
+MIN_JWT_SECRET_BYTES = 32
 
 
 class Settings(BaseSettings):
@@ -32,6 +35,14 @@ class Settings(BaseSettings):
         default=60, alias="PASSWORD_RESET_TTL_MINUTES"
     )
 
+    # --- Password hashing (Argon2id) ---
+    # Defaults are None → passlib's strong production defaults are used. Override
+    # with LOW values in the TEST environment only (see backend/scripts/run-tests.sh)
+    # to keep the suite fast; NEVER lower these in production.
+    argon2_time_cost: int | None = Field(default=None, alias="ARGON2_TIME_COST")
+    argon2_memory_cost: int | None = Field(default=None, alias="ARGON2_MEMORY_COST")
+    argon2_parallelism: int | None = Field(default=None, alias="ARGON2_PARALLELISM")
+
     # --- Email ---
     email_mode: str = Field(default="test", alias="EMAIL_MODE")  # test | smtp
 
@@ -47,6 +58,18 @@ class Settings(BaseSettings):
     superadmin_full_name: str = Field(
         default="Platform Super Admin", alias="SUPERADMIN_FULL_NAME"
     )
+
+    @field_validator("jwt_secret")
+    @classmethod
+    def _jwt_secret_strong_enough(cls, v: str) -> str:
+        """Refuse to start with a weak HS256 secret (fail fast, not a warning)."""
+        if len(v.encode("utf-8")) < MIN_JWT_SECRET_BYTES:
+            raise ValueError(
+                f"JWT_SECRET must be at least {MIN_JWT_SECRET_BYTES} bytes for "
+                "HS256. Generate one with "
+                '`python -c "import secrets;print(secrets.token_urlsafe(48))"`.'
+            )
+        return v
 
     @property
     def cors_origin_list(self) -> list[str]:
