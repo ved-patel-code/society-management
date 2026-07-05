@@ -1,0 +1,29 @@
+# Society Management — backend dependencies (pinned).
+# Vetted for CVEs / supply-chain on 2026-07-05 (see PR notes). Re-vet any NEW dep before adding.
+
+# --- Web framework / server ---
+fastapi==0.139.0
+uvicorn[standard]==0.50.0
+python-multipart==0.0.32
+
+# --- ORM / migrations / DB driver ---
+sqlalchemy==2.0.51
+alembic==1.18.5
+psycopg[binary]==3.3.4
+
+# --- Validation / settings ---
+pydantic==2.13.4
+pydantic-settings==2.14.2
+
+# --- Auth / hashing ---
+# PyJWT 2.13.0 fixes the 2026 algorithm-confusion CVEs (CVE-2026-48526 / CVE-2026-48523).
+# Always decode with an explicit algorithms=["HS256"] — never leave it unspecified.
+PyJWT==2.13.0
+passlib==1.7.4
+argon2-cffi==25.1.0
+
+# --- Object storage (interface only wired now; impl deferred) ---
+minio==7.2.20
+
+# --- Background worker scheduler ---
+APScheduler==3.11.3

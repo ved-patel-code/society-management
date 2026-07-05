@@ -1,0 +1,9 @@
+# Normalize line endings. Keep LF in the repo for code/config so Docker (Linux)
+# builds are byte-stable regardless of the committer's OS.
+* text=auto eol=lf
+
+# Binary-ish files never get line-ending translation.
+*.png binary
+*.jpg binary
+*.pdf binary
+*.ico binary
