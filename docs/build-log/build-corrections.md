@@ -114,6 +114,37 @@ This caught B1–B3 before they reached the review gate, keeping the review focu
 
 ---
 
+## Phase 4 — test gate
+
+### T1 — Test suite must never run against the dev/prod database
+- **What:** the suite truncates every table before each test; run against `society` (dev) it would wipe dev data.
+- **Fix:** dedicated `society_test` DB, auto-created + migrated by `backend/scripts/run-tests.sh`; a guard (`conftest_dbguard`) refuses to run unless the DB name ends in `_test`. Truncate list derived dynamically from SQLAlchemy metadata so future modules' tables are covered with no harness edit.
+- **Verified:** suite runs only against `society_test`; dev DB untouched.
+
+### T2 — Test suite was slow (~28s/64 tests) due to Argon2id
+- **What:** Argon2id is deliberately ~83ms/hash (production security); the suite does 100+ hashes.
+- **Detected:** wall-clock + a direct one-hash timing measurement (~83ms).
+- **Cause:** intended production hashing cost, not a bug.
+- **Fix:** test-only Argon2 cost knobs (`ARGON2_TIME_COST/MEMORY_COST/PARALLELISM`, default None = strong). `run-tests.sh` sets them low → ~0.5ms/hash. Production `.env` never sets them.
+- **Verified:** 100 tests in ~17s; per-hash ~83ms → ~0.5ms; production hashing unchanged.
+
+### T3 — Concurrent test runs on the shared test DB deadlock
+- **What:** starting a full-suite run while test-writing agents were still hitting `society_test` hung (no output). A follow-up `pkill pytest` then also killed the next run.
+- **Detected:** a background run produced zero output for a long time.
+- **Cause:** the single truncate-based test DB is single-runner — two processes doing `TRUNCATE ... CASCADE` + reseed block on locks. The `pkill` was too broad.
+- **Fix (process):** run one suite at a time; the lead ran the suite **synchronously, file by file**, to get definitive results. No app/code change.
+- **Verified:** clean sequential runs — roles/provisioning 21, vuln+e2e 15, whole suite **100 passed**.
+
+### T4 — Weak default JWT secret surfaced by a test warning (config, not code)
+- **What:** tests emitted PyJWT `InsecureKeyLengthWarning` — the `.env.template` `JWT_SECRET` placeholder was 24 bytes (< 32 for HS256).
+- **Detected:** pytest warning during the vulnerabilities tests.
+- **Cause:** a short example secret; no startup guard.
+- **Fix:** `.env.template` placeholder lengthened to ≥32 bytes; added a `Settings` validator that **refuses to start** with a `JWT_SECRET` shorter than 32 bytes (fail-fast, not a warning).
+- **Verified:** app boots with a strong secret (`/health` 200); warning gone; 100/100 tests pass.
+
+### Phase 4 result
+**100 tests, 100 passing, 0 real code bugs.** Coverage: happy paths, bad/validation, exceptions/edge, security with & without roles, vulnerabilities, and the full e2e bootstrap. All test-side assertion mismatches were fixed in the tests (they reflected correct/stronger app behavior, e.g. login email validated at the edge → 422; theft writes one audit row per reuse attempt).
+
 ## Cross-references
 - Automated review findings + fixes → [`code-review-findings.md`](code-review-findings.md).
 - As-built code index → [`../implemented/platform-foundation.md`](../implemented/platform-foundation.md).

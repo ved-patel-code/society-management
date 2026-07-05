@@ -22,7 +22,19 @@ from app.common.time import utcnow
 from app.core.config import settings
 
 # Argon2id is passlib's default variant for the "argon2" scheme.
-_pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
+# Cost params default to passlib's strong production defaults; they are only
+# overridden when explicitly configured (LOW in the test env for speed — never in
+# production). Unset knobs are omitted so passlib keeps its own secure defaults.
+_argon2_opts = {
+    key: value
+    for key, value in {
+        "argon2__time_cost": settings.argon2_time_cost,
+        "argon2__memory_cost": settings.argon2_memory_cost,
+        "argon2__parallelism": settings.argon2_parallelism,
+    }.items()
+    if value is not None
+}
+_pwd_context = CryptContext(schemes=["argon2"], deprecated="auto", **_argon2_opts)
 
 
 # --- Passwords -------------------------------------------------------------
