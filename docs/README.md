@@ -2,7 +2,9 @@
 
 Start here. Read the foundation docs in order, then dive into individual modules.
 
-> **All modules are now designed.** History of requirements/decisions per module lives in **[../REMAINING-MODULES.md](../REMAINING-MODULES.md)**; the authoritative specs are the per-module docs below. Next phase is implementation (backend first).
+> **All modules are designed; implementation is underway (backend-first).** History of requirements/decisions per module lives in **[../REMAINING-MODULES.md](../REMAINING-MODULES.md)**; the authoritative specs are the per-module docs below. As-built indexes for built modules live in **[implemented/](implemented/)** and build/QA records in **[build-log/](build-log/)**.
+>
+> **Built so far:** Module 0 — Platform Foundation ([implemented/platform-foundation.md](implemented/platform-foundation.md)). Remaining modules build one at a time on feature branches, in the order below.
 
 ## Foundation (read first — stable shared context)
 1. [01 — Project Overview](01-project-overview.md) — what the app is, modules, priorities.

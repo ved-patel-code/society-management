@@ -11,10 +11,24 @@ See [`docs/`](docs/README.md) — start with the foundation docs (01–05), then
 ## Repo layout
 ```
 society/
-  docs/        # design & architecture documentation
+  docs/        # design & architecture docs + per-module design + as-built + build-log
   backend/     # FastAPI modular monolith (built first)
-  frontend/    # Next.js (built later)
-  infra/       # docker-compose, env templates, service init
+  frontend/    # Next.js (built later — placeholder)
+  infra/       # Dockerfile, env template, service init
+  docker-compose.yml
 ```
 
-> Status: design phase. No application code yet — documenting the foundation and designing modules one at a time.
+## Running (all in Docker)
+```
+cp infra/.env.template .env        # fill in secrets (JWT_SECRET must be >= 32 bytes)
+docker compose up -d --build
+docker compose exec backend alembic upgrade head
+docker compose exec backend python -m app.cli.seed
+docker compose exec backend bash scripts/run-tests.sh   # tests (isolated society_test DB)
+```
+API + Swagger UI at `http://localhost:8000/docs`.
+
+> Status: **implementation, backend-first.** Module 0 (Platform Foundation — auth,
+> roles/permissions, societies, module allocation, tenant scoping, audit) is **built,
+> tested, and on `main`**. All modules are designed (`docs/`); the remaining modules are
+> built one at a time on feature branches. See `docs/implemented/` for as-built indexes.
