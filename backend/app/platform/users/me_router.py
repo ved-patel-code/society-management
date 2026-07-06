@@ -41,6 +41,9 @@ class MeResponse(BaseModel):
     modules: list[str]
     landing: str | None
     permissions: list[str]
+    # Blocking-wizard hint (Onboarding module §4): true while the active society is
+    # still in 'onboarding' status → the client locks the shell to the wizard.
+    onboarding_required: bool = False
 
 
 @router.get("/me", response_model=MeResponse)

@@ -16,6 +16,8 @@ from fastapi.responses import JSONResponse
 
 from app.common.errors import DomainError
 from app.core.config import settings
+from app.modules.onboarding.router import router as onboarding_router
+from app.modules.onboarding.spec import register_onboarding
 from app.platform.auth.router import router as auth_router
 from app.platform.bootstrap import register_foundation
 from app.platform.roles.router import router as roles_router
@@ -47,6 +49,7 @@ def _install_error_handlers(app: FastAPI) -> None:
 
 def create_app() -> FastAPI:
     register_foundation()
+    register_onboarding()
 
     app = FastAPI(
         title="Society Management API",
@@ -71,6 +74,9 @@ def create_app() -> FastAPI:
     app.include_router(societies_router)
     app.include_router(users_router)
     app.include_router(roles_router)
+
+    # Feature module routers.
+    app.include_router(onboarding_router)
 
     @app.get("/health", tags=["health"])
     async def health() -> dict[str, str]:
