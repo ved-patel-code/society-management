@@ -15,6 +15,7 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from app.core.deps import AuthContext
+from app.platform.models import Society
 from app.platform.roles.service import RoleService
 
 # Portal → landing page the shell opens on (docs/PF §5.1, §6):
@@ -97,4 +98,20 @@ def build_me_view(
         "modules": modules,
         "landing": landing,
         "permissions": permissions,
+        # Blocking wizard (Onboarding module §4): while the active society is still
+        # in 'onboarding' status the client locks the shell to the onboarding
+        # wizard. A pure view hint — authorization is unaffected (the gates stand).
+        "onboarding_required": _is_onboarding_required(session, society_id),
     }
+
+
+def _is_onboarding_required(session: Session, society_id: int | None) -> bool:
+    """True when the caller's active society still needs its structure mapped.
+
+    Signals the frontend to open the onboarding wizard and nothing else (docs
+    onboarding §4). Read-only; never affects the two request gates.
+    """
+    if society_id is None:
+        return False
+    status = session.get(Society, society_id)
+    return status is not None and status.status == "onboarding"

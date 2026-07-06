@@ -31,7 +31,16 @@ class PermissionDef:
 
 @dataclass
 class ModuleSpec:
-    """Self-description of a module (docs/02 §3)."""
+    """Self-description of a module (docs/02 §3).
+
+    ``default_role_permissions`` maps a role key → the permission keys that role
+    should hold once the module is ENABLED for a society (each module doc's
+    "Default seeding (data-driven roles)" line). Onboarding is the first module to
+    use it: ``{"society_admin": ["onboarding.manage", "onboarding.read"]}``. The
+    foundation grants these to the society's matching roles when the super-admin
+    enables the module (idempotent, grant-only), keeping roles data-driven and
+    per-society (docs/PF §5). Keys must be a subset of this spec's ``permissions``.
+    """
 
     key: str
     name: str
@@ -40,6 +49,7 @@ class ModuleSpec:
     depends_on: list[str] = field(default_factory=list)
     is_core: bool = False
     router: "APIRouter | None" = None
+    default_role_permissions: dict[str, list[str]] = field(default_factory=dict)
 
 
 class ModuleRegistry:

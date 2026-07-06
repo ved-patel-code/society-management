@@ -21,6 +21,7 @@ from app.core.config import settings
 from app.core.db import SessionLocal
 from app.core.registry import MODULE_REGISTRY
 from app.core.security import hash_password
+from app.modules.onboarding.spec import register_onboarding
 from app.platform.bootstrap import (
     GLOBAL_ROLE_TEMPLATES,
     SUPER_ADMIN,
@@ -122,6 +123,7 @@ def seed_super_admin(session: Session) -> bool:
 
 def main() -> None:
     register_foundation()
+    register_onboarding()
     session = SessionLocal()
     try:
         perms = seed_permissions(session)

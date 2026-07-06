@@ -102,6 +102,58 @@ class RoleService:
 
         return result
 
+    # --- default module permissions on enable (docs/PF §5; module docs) ---
+
+    def grant_default_module_permissions(
+        self,
+        society_id: int,
+        role_permissions: dict[str, list[str]],
+        *,
+        actor_user_id: int | None,
+    ) -> None:
+        """ADDITIVELY grant a module's default permissions to a society's roles.
+
+        Called when a module is enabled for a society (each module doc's "Default
+        seeding (data-driven roles)" line — e.g. onboarding grants
+        ``society_admin`` → ``onboarding.manage``/``onboarding.read``). Idempotent:
+        only permissions the role does not already hold are added, so re-enabling a
+        module never duplicates rows or re-audits. Unknown permission keys and
+        absent roles are skipped silently (the module may target roles a given
+        society hasn't created). Audits ``permission.granted_by_module`` per role
+        that actually gains keys.
+        """
+        for role_key, perm_keys in role_permissions.items():
+            if not perm_keys:
+                continue
+            role = self._repo.society_role_by_key(society_id, role_key)
+            if role is None:
+                continue
+
+            existing = self._repo.role_permission_keys(role.id)
+            missing_keys = [k for k in perm_keys if k not in existing]
+            if not missing_keys:
+                continue
+
+            found = self._repo.permission_ids_for_keys(missing_keys)
+            new_ids = [found[k] for k in missing_keys if k in found]
+            if not new_ids:
+                continue
+
+            self._repo.add_role_permissions(role.id, new_ids)
+            self._audit.record(
+                action="permission.granted_by_module",
+                actor_user_id=actor_user_id,
+                society_id=society_id,
+                entity_type="role",
+                entity_id=role.id,
+                after={
+                    "role_key": role_key,
+                    "granted_permission_keys": sorted(
+                        k for k in missing_keys if k in found
+                    ),
+                },
+            )
+
     # --- effective permissions / portals / modules (docs/PF §5/§5.1) -----
 
     def effective_permission_keys(

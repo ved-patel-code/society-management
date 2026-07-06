@@ -77,8 +77,13 @@ def _seed_baseline(db: Session) -> None:
     """Seed permission catalog + global role templates + one super-admin.
 
     Mirrors ``app.cli.seed`` but is self-contained and env-independent so tests
-    are deterministic.
+    are deterministic. All inserts are **idempotent** (``ON CONFLICT DO NOTHING``
+    on the unique keys) so the seed can never raise ``uq_permissions_key`` /
+    ``uq_roles_society_key`` / duplicate-email even if a stray or overlapping run
+    briefly shares a worker DB — the reset stays crash-proof.
     """
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+
     from app.core.registry import MODULE_REGISTRY
     from app.core.security import hash_password
     from app.platform.bootstrap import GLOBAL_ROLE_TEMPLATES, register_foundation
@@ -86,31 +91,42 @@ def _seed_baseline(db: Session) -> None:
 
     register_foundation()
 
-    # Permissions from the registry (foundation has none today; future-proof).
-    existing_perms = {k for (k,) in db.execute(text("SELECT key FROM permissions"))}
-    for perm in MODULE_REGISTRY.all_permission_keys():
-        if perm.key not in existing_perms:
-            module_key = perm.key.split(".", 1)[0] if "." in perm.key else perm.key
-            db.add(
-                Permission(
-                    key=perm.key, module_key=module_key, description=perm.description
-                )
-            )
-
-    for tmpl in GLOBAL_ROLE_TEMPLATES:
-        db.add(
-            Role(
-                society_id=None,
-                key=tmpl.key,
-                name=tmpl.name,
-                is_system=True,
-                scope=tmpl.scope,
-                portal=tmpl.portal,
-            )
+    # Permissions from the registry — upsert-safe.
+    perm_rows = [
+        {
+            "key": perm.key,
+            "module_key": perm.key.split(".", 1)[0] if "." in perm.key else perm.key,
+            "description": perm.description,
+        }
+        for perm in MODULE_REGISTRY.all_permission_keys()
+    ]
+    if perm_rows:
+        db.execute(
+            pg_insert(Permission)
+            .values(perm_rows)
+            .on_conflict_do_nothing(index_elements=["key"])
         )
 
-    db.add(
-        User(
+    role_rows = [
+        {
+            "society_id": None,
+            "key": tmpl.key,
+            "name": tmpl.name,
+            "is_system": True,
+            "scope": tmpl.scope,
+            "portal": tmpl.portal,
+        }
+        for tmpl in GLOBAL_ROLE_TEMPLATES
+    ]
+    db.execute(
+        pg_insert(Role)
+        .values(role_rows)
+        .on_conflict_do_nothing(index_elements=["society_id", "key"])
+    )
+
+    db.execute(
+        pg_insert(User)
+        .values(
             email=SUPERADMIN_EMAIL,
             password_hash=hash_password(SUPERADMIN_PASSWORD),
             password_state="active",
@@ -118,6 +134,7 @@ def _seed_baseline(db: Session) -> None:
             full_name="Platform Root",
             is_active=True,
         )
+        .on_conflict_do_nothing(index_elements=["email"])
     )
     db.commit()
 

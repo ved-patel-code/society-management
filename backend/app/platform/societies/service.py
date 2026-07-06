@@ -179,6 +179,8 @@ class SocietyService:
         existing = {m.module_key: m for m in self._repo.list_modules(society_id)}
         enabled_keys = {k for k, m in existing.items() if m.enabled}
 
+        role_service = RoleService(self._session)
+
         results: list[SocietyModule] = []
         for alloc in allocations:
             if alloc.enabled:
@@ -238,6 +240,20 @@ class SocietyService:
                 after=self._module_snapshot(row),
             )
             results.append(row)
+
+        # Grant each ENABLED module's default role→permission set to the society's
+        # matching roles (docs/PF §5; each module doc's "Default seeding" line).
+        # Idempotent, so it also self-heals a society that pre-dated the module's
+        # defaults. Only modules that are enabled in the FINAL state are granted.
+        final_enabled = {m.module_key for m in existing.values() if m.enabled}
+        for module_key in final_enabled:
+            spec = MODULE_REGISTRY.get(module_key)
+            if spec is not None and spec.default_role_permissions:
+                role_service.grant_default_module_permissions(
+                    society_id,
+                    spec.default_role_permissions,
+                    actor_user_id=actor_user_id,
+                )
 
         # Return the full, ordered module set so the caller sees final state.
         return self._repo.list_modules(society.id)
