@@ -38,8 +38,11 @@ done
 if $has_n; then
   exec pytest "$@"
 else
-  # Default worker count. Each worker migrates its own DB, so very high counts add
-  # setup overhead that only pays off with many tests. TEST_WORKERS lets you tune
-  # it (e.g. TEST_WORKERS=auto for a large suite on a big box). Default: 4.
-  exec pytest -n "${TEST_WORKERS:-4}" "$@"
+  # Default worker count. Each worker creates+migrates its OWN database on first
+  # use, so the first cold run pays a per-worker setup tax; subsequent runs reuse
+  # the databases and scale better. With the idempotent baseline seed
+  # (conftest._seed_baseline uses ON CONFLICT), workers are collision-safe. 8 is a
+  # good default on a multi-core box for this suite's size; TEST_WORKERS overrides
+  # (e.g. TEST_WORKERS=4 on a small box, TEST_WORKERS=auto to use every core).
+  exec pytest -n "${TEST_WORKERS:-8}" "$@"
 fi
