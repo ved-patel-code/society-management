@@ -10,6 +10,7 @@ signatures the service/contract depends on.
 """
 from __future__ import annotations
 
+from sqlalchemy import delete as sa_delete
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -225,3 +226,32 @@ class OnboardingRepository:
             ).limit(1)
         ).first()
         return row is not None
+
+    # --- guarded deletes (later edits — docs §4) ---------------------------
+
+    def delete_house(self, house: House) -> None:
+        self._session.delete(house)
+
+    def delete_floor(self, floor: Floor) -> None:
+        self._session.delete(floor)
+
+    def delete_building(self, building: Building) -> None:
+        self._session.delete(building)
+
+    def delete_houses_for_building(self, building_id: int) -> None:
+        """Bulk-delete a building's houses (cascade before the building is removed)."""
+        self._session.execute(
+            sa_delete(House).where(House.building_id == building_id)
+        )
+
+    def delete_floors_for_building(self, building_id: int) -> None:
+        """Bulk-delete a building's floors (cascade before the building is removed)."""
+        self._session.execute(
+            sa_delete(Floor).where(Floor.building_id == building_id)
+        )
+
+    def delete_houses_for_floor(self, floor_id: int) -> None:
+        """Bulk-delete a floor's houses (cascade before the floor is removed)."""
+        self._session.execute(
+            sa_delete(House).where(House.floor_id == floor_id)
+        )
