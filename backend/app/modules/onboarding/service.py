@@ -27,6 +27,7 @@ from app.modules.onboarding.repository import OnboardingRepository
 from app.modules.onboarding.models import Floor, Row
 from app.modules.onboarding.schemas import (
     SOCIETY_TYPES,
+    BuildingAddFloorsRequest,
     BuildingMapRequest,
     BuildingsCreateRequest,
     RowsCreateRequest,
@@ -273,8 +274,9 @@ class OnboardingService:
         the ``UNIQUE(society_id, name)`` index is the safety net. One
         ``onboarding.building_created`` audit row per building.
         """
+        # No onboarding-open guard: "add building" is a legitimate later edit
+        # allowed post-completion (spec §4/§6). Type guard is kept.
         society = self._get_society(society_id)
-        self._require_onboarding_open(society)
         if society.type != "building":
             raise ValidationError(
                 "Buildings can only be created for a 'building'-type society.",
@@ -353,8 +355,9 @@ class OnboardingService:
              ``numbering_defaults`` for prefill-repeat; set ``current_building_index``.
           6. Audit ONE ``onboarding.houses_generated``.
         """
+        # No onboarding-open guard: mapping is allowed as a later edit
+        # post-completion (spec §4/§6). Type guard is kept.
         society = self._get_society(society_id)
-        self._require_onboarding_open(society)
         if society.type != "building":
             raise ValidationError(
                 "Building mapping requires a 'building'-type society.",
@@ -421,8 +424,14 @@ class OnboardingService:
         ordered_inputs = sorted(
             data.floors, key=lambda f: (0 if f.is_ground else 1, f.level)
         )
+        # Resolve each floor's effective houses_count (per-floor override wins,
+        # else the building default; both missing → 422). Spec §3.
+        effective_counts = [
+            self._resolve_houses_count(fin, data.default_houses_per_floor)
+            for fin in ordered_inputs
+        ]
         floor_rows: list[Floor] = []
-        for fin in ordered_inputs:
+        for fin, count in zip(ordered_inputs, effective_counts):
             floor = self._repo.add_floor(
                 Floor(
                     society_id=society_id,
@@ -430,7 +439,7 @@ class OnboardingService:
                     level=fin.level,
                     is_ground=fin.is_ground,
                     label=fin.label,
-                    houses_count=fin.houses_count,
+                    houses_count=count,
                 )
             )
             floor_rows.append(floor)
@@ -452,14 +461,16 @@ class OnboardingService:
             numbering.FloorSpec(
                 level=fin.level,
                 is_ground=fin.is_ground,
-                houses_count=fin.houses_count,
+                houses_count=count,
                 manual_numbers=list(fin.manual_numbers),
             )
-            for fin in ordered_inputs
+            for fin, count in zip(ordered_inputs, effective_counts)
         ]
         start_at = 1
         if cfg.mode == "sequential" and cfg.sequential_scope == "continuous":
-            start_at = self._repo.max_continuous_number(society_id) + 1
+            # Seed ONLY from prior continuous-sequential building houses so AUTO/
+            # manual numbers don't pollute the running sequence (spec §4).
+            start_at = self._repo.max_continuous_building_number(society_id) + 1
         try:
             generated = numbering.generate_building_numbers(
                 specs,
@@ -514,6 +525,176 @@ class OnboardingService:
             entity_type="building",
             entity_id=building_id,
             after={"mode": cfg.mode, "count": len(houses)},
+        )
+        return houses
+
+    def add_floors(
+        self,
+        society_id: int,
+        building_id: int,
+        data: "BuildingAddFloorsRequest",
+        *,
+        actor_user_id: int,
+    ) -> list[House]:
+        """Add floors to an ALREADY-mapped building, reusing its stored numbering
+        config (spec §4 "add floor" later edit). One transaction.
+
+        Only the NEW floors' houses are generated. New numbers are clash-checked
+        against the building's existing numbers. For continuous sequential the
+        seed carries on from prior continuous-sequential houses. Audits one
+        ``onboarding.floor_added`` per new floor + one ``onboarding.houses_generated``.
+        No onboarding-open guard: this is a legitimate post-completion later edit.
+        """
+        society = self._get_society(society_id)
+        if society.type != "building":
+            raise ValidationError(
+                "Adding floors requires a 'building'-type society.",
+                details={"type": society.type},
+            )
+        building = self._repo.get_building(society_id, building_id)
+        if building is None:
+            raise NotFoundError(
+                "Building not found.", details={"building_id": building_id}
+            )
+
+        cfg = building.numbering_config or {}
+        mode = cfg.get("mode")
+        if mode not in numbering.BUILDING_MODES:
+            raise ValidationError(
+                "This building has no stored numbering config; map it first.",
+                details={"building_id": building_id},
+            )
+        sequential_scope = cfg.get("sequential_scope", "per_building")
+        count_pad = cfg.get("count_pad", numbering.DEFAULT_COUNT_PAD)
+        ground_prefix = cfg.get("ground_prefix", numbering.DEFAULT_GROUND_PREFIX)
+
+        # --- validate new floors against each other AND existing floors --------
+        existing_floors = self._repo.list_floors(building_id)
+        existing_ground = any(f.is_ground for f in existing_floors)
+        existing_levels = {f.level for f in existing_floors if not f.is_ground}
+
+        ground_seen = existing_ground
+        upper_levels = set(existing_levels)
+        for fin in data.floors:
+            if fin.is_ground:
+                if ground_seen:
+                    raise ValidationError(
+                        "A building may have at most one ground floor.",
+                        details={"field": "floors"},
+                    )
+                ground_seen = True
+                if fin.level != numbering.GROUND_LEVEL:
+                    raise ValidationError(
+                        "The ground floor must have level 0.",
+                        details={"level": fin.level},
+                    )
+            else:
+                if fin.level < 1:
+                    raise ValidationError(
+                        "Upper floors must have level >= 1.",
+                        details={"level": fin.level},
+                    )
+                if fin.level in upper_levels:
+                    raise ValidationError(
+                        "Duplicate floor level.", details={"level": fin.level}
+                    )
+                upper_levels.add(fin.level)
+
+        ordered_inputs = sorted(
+            data.floors, key=lambda f: (0 if f.is_ground else 1, f.level)
+        )
+        effective_counts = [
+            self._resolve_houses_count(fin, data.default_houses_per_floor)
+            for fin in ordered_inputs
+        ]
+
+        # --- persist the new floors, audit each --------------------------------
+        floor_rows: list[Floor] = []
+        for fin, count in zip(ordered_inputs, effective_counts):
+            floor = self._repo.add_floor(
+                Floor(
+                    society_id=society_id,
+                    building_id=building_id,
+                    level=fin.level,
+                    is_ground=fin.is_ground,
+                    label=fin.label,
+                    houses_count=count,
+                )
+            )
+            floor_rows.append(floor)
+            self._audit.record(
+                action="onboarding.floor_added",
+                actor_user_id=actor_user_id,
+                society_id=society_id,
+                entity_type="floor",
+                entity_id=floor.id,
+                after={
+                    "building_id": building_id,
+                    "level": floor.level,
+                    "is_ground": floor.is_ground,
+                },
+            )
+
+        # --- generate numbers for the NEW floors only --------------------------
+        specs = [
+            numbering.FloorSpec(
+                level=fin.level,
+                is_ground=fin.is_ground,
+                houses_count=count,
+                manual_numbers=list(fin.manual_numbers),
+            )
+            for fin, count in zip(ordered_inputs, effective_counts)
+        ]
+        start_at = 1
+        if mode == "sequential" and sequential_scope == "continuous":
+            start_at = self._repo.max_continuous_building_number(society_id) + 1
+        try:
+            generated = numbering.generate_building_numbers(
+                specs,
+                mode=mode,
+                count_pad=count_pad,
+                ground_prefix=ground_prefix,
+                sequential_scope=sequential_scope,
+                start_at=start_at,
+            )
+        except numbering.NumberingError as exc:
+            raise ValidationError(str(exc), details={"field": "numbering"}) from exc
+
+        # --- clash-check the new numbers against the building's existing ones ---
+        new_numbers = [g.number for g in generated]
+        self._reject_clashes(
+            new_numbers, self._repo.building_numbers(society_id, building_id)
+        )
+
+        floor_by_level = {(f.is_ground, f.level): f for f in floor_rows}
+        houses: list[House] = []
+        for g in generated:
+            floor = floor_by_level[(g.is_ground, g.level)]
+            houses.append(
+                self._repo.add_house(
+                    House(
+                        society_id=society_id,
+                        building_id=building_id,
+                        floor_id=floor.id,
+                        row_id=None,
+                        position_in_row=None,
+                        number=g.number,
+                        numbering_mode=mode,
+                        number_overridden=False,
+                        status="empty",
+                        first_left_empty_on=None,
+                    )
+                )
+            )
+        self._session.flush()
+
+        self._audit.record(
+            action="onboarding.houses_generated",
+            actor_user_id=actor_user_id,
+            society_id=society_id,
+            entity_type="building",
+            entity_id=building_id,
+            after={"mode": mode, "count": len(houses)},
         )
         return houses
 
@@ -582,7 +763,9 @@ class OnboardingService:
             seen_orders.add(rin.display_order)
 
         # Continuous sequential counter carried across every row in the batch.
-        counter = self._repo.max_continuous_number(society_id) + 1
+        # Seeded ONLY from prior continuous-sequential individual houses (not
+        # custom/manual numbers) so the 1,2,3… sequence is not polluted (spec §4).
+        counter = self._repo.max_continuous_individual_number(society_id) + 1
         existing_numbers = self._repo.individual_numbers(society_id)
         # Track batch-so-far numbers for cross-row clash detection.
         batch_numbers: list[str] = []
@@ -890,6 +1073,25 @@ class OnboardingService:
             entity_id=house_id,
             before=before,
         )
+
+    # --- floor helpers -----------------------------------------------------
+
+    @staticmethod
+    def _resolve_houses_count(fin: Any, default: int | None) -> int:
+        """Effective houses_count for a floor: per-floor override wins, else the
+        building default; if BOTH are None → ``ValidationError`` naming the floor
+        (spec §3)."""
+        count = fin.houses_count if fin.houses_count is not None else default
+        if count is None:
+            raise ValidationError(
+                "A floor needs houses_count or a building default_houses_per_floor.",
+                details={
+                    "field": "houses_count",
+                    "level": fin.level,
+                    "is_ground": fin.is_ground,
+                },
+            )
+        return count
 
     # --- clash helper ------------------------------------------------------
 

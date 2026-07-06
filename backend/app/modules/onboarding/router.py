@@ -14,6 +14,7 @@ from app.common.errors import ValidationError
 from app.core.db import get_session
 from app.core.deps import AuthContext, TenantContext, get_tenant_context, require_module, require_permission
 from app.modules.onboarding.schemas import (
+    BuildingAddFloorsRequest,
     BuildingMapRequest,
     BuildingOut,
     BuildingRenameRequest,
@@ -114,6 +115,25 @@ def map_building(
 ) -> list[HouseOut]:
     """Floors + ground toggle + per-floor houses + numbering config → generate houses."""
     houses = OnboardingService(session).map_building(
+        _society_id(tenant), building_id, body, actor_user_id=auth.user_id
+    )
+    return [HouseOut.model_validate(h) for h in houses]
+
+
+@router.post(
+    "/buildings/{building_id}/floors",
+    response_model=list[HouseOut],
+    dependencies=_MANAGE,
+)
+def add_floors(
+    building_id: int,
+    body: BuildingAddFloorsRequest,
+    auth: AuthContext = Depends(require_permission("onboarding.manage")),
+    tenant: TenantContext = Depends(get_tenant_context),
+    session: Session = Depends(get_session),
+) -> list[HouseOut]:
+    """Add floors to an already-mapped building, reusing its stored numbering config."""
+    houses = OnboardingService(session).add_floors(
         _society_id(tenant), building_id, body, actor_user_id=auth.user_id
     )
     return [HouseOut.model_validate(h) for h in houses]

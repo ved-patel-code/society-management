@@ -58,7 +58,9 @@ class FloorInput(BaseModel):
     level: int = Field(ge=0)
     is_ground: bool = False
     label: str | None = Field(default=None, max_length=64)
-    houses_count: int = Field(ge=0)
+    # Optional per-floor override; when None the building's
+    # ``default_houses_per_floor`` applies (spec §3). Both missing → 422 in service.
+    houses_count: int | None = Field(default=None, ge=0)
     # MANUAL mode only: exact numbers the admin typed, in floor order.
     manual_numbers: list[str] = Field(default_factory=list)
 
@@ -84,6 +86,19 @@ class BuildingMapRequest(BaseModel):
 
     floors: list[FloorInput] = Field(min_length=1)
     numbering_config: BuildingNumberingConfig
+    # Building-level default houses-per-floor; each floor's own ``houses_count``
+    # overrides it. A floor with neither set → ValidationError (spec §3).
+    default_houses_per_floor: int | None = Field(default=None, ge=0)
+
+
+class BuildingAddFloorsRequest(BaseModel):
+    """Body for ``POST /onboarding/buildings/{id}/floors`` — add floors to a mapped building.
+
+    Reuses the building's STORED ``numbering_config`` (mode is not re-specified).
+    """
+
+    floors: list[FloorInput] = Field(min_length=1)
+    default_houses_per_floor: int | None = Field(default=None, ge=0)
 
 
 # --- Individual flow requests ----------------------------------------------
