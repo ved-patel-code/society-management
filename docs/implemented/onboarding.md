@@ -101,11 +101,11 @@ DBs, truncate+reseed (now idempotent), fixtures. Run:
    floor" as a later edit but named no endpoint; `map_building` is initial-map-once.
 6. **Continuous sequential seeds only from prior continuous-sequential houses** (not
    AUTO/manual numbers) — required to honor §4 "one running sequence across towers."
-7. **DELETE guard is status-only for v1 (DEFERRED richer guard):** delete is blocked
-   when a house's `status != 'empty'`. The spec's fuller guard ("checked via House &
-   Occupancy + Finance services" — dues + occupancy) is **deferred until those modules
-   exist**; wire the real checks into `delete_building/floor/house` at that time. This
-   is a known, tracked gap to complete once all modules are built.
+7. **DELETE guard — occupancy check completed by Module 2:** delete is blocked when a
+   house's `status != 'empty'` **and** (as of House & Occupancy, Module 2) when a
+   current occupancy exists (`has_current_occupancy_for_building/floor/house`). The
+   remaining Finance/dues portion of the fuller guard stays deferred until Finance is
+   built.
 8. Schema-only / future (unchanged from design, not implemented): `rows.both_sides`,
    bulk CSV import, changing society type after completion, re-numbering tools (§10).
 

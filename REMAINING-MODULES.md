@@ -7,7 +7,7 @@
 Designed ✅: Platform Foundation, Onboarding, House & Occupancy, Vault, Finance, **Complaints**, **Notice Board**, **Notifications** (`docs/modules/notifications.md`).
 **Remaining: NONE — all modules are designed.** This handoff doc is fully consumed; the authoritative specs are the per-module docs under `docs/modules/`.
 
-**Built 🛠️ (backend, in Docker, on feature branches → PR):** Module 0 — Platform Foundation; **Module 1 — Onboarding** (`docs/implemented/onboarding.md`; 218 tests). Next module to build: **House & Occupancy** (Module 2) — it writes `houses.status` / occupancy on the registry Onboarding created.
+**Built 🛠️ (backend, in Docker, on feature branches → PR):** Module 0 — Platform Foundation; **Module 1 — Onboarding** (`docs/implemented/onboarding.md`; 218 tests); **Module 2 — House & Occupancy** (`docs/implemented/house-occupancy.md`; 372 tests) — writes `houses.status` / `first_left_empty_on` / occupancy on the registry Onboarding created, provides `current_owner_user_ids`. Next module to build: **Vault** (Module 3) — document storage (MinIO); also wires the deferred `house_occupancies.id_proof_document_id` FK + ID-proof upload.
 
 ## Global rules already in force (apply to every remaining module)
 - **Stack/arch:** modular monolith, FastAPI + Postgres + MinIO + Docker; per-society **feature flags** (`society_modules`); **data-driven roles/permissions**; each module self-contained (`ModuleSpec`, `require_module` + `require_permission`).

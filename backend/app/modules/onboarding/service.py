@@ -985,8 +985,9 @@ class OnboardingService:
         """Delete a building + cascade its floors/houses, guarded by status (spec §4).
 
         Guard: blocked if ANY house in the building is not ``status='empty'``.
-        NOTE: the fuller dues/occupancy guard (Finance + House & Occupancy) is
-        DEFERRED until those modules exist — this status-only guard is the v1 rule.
+        The occupancy guard is now ACTIVE (defense-in-depth): deletion is also
+        blocked if any house in the building has a current occupancy, so status
+        and occupancy must agree before a building can be removed.
         """
         building = self._repo.get_building(society_id, building_id)
         if building is None:
@@ -996,6 +997,11 @@ class OnboardingService:
         if self._repo.has_non_empty_houses_for_building(building_id):
             raise ConflictError(
                 "Cannot delete a building with occupied houses.",
+                details={"building_id": building_id},
+            )
+        if self._repo.has_current_occupancy_for_building(building_id):
+            raise ConflictError(
+                "Cannot delete: houses have active occupancy.",
                 details={"building_id": building_id},
             )
 
@@ -1018,7 +1024,8 @@ class OnboardingService:
     ) -> None:
         """Delete a floor + cascade its houses, guarded by status='empty' (spec §4).
 
-        NOTE: the fuller dues/occupancy guard is DEFERRED (see ``delete_building``).
+        The occupancy guard is now ACTIVE (defense-in-depth): deletion is also
+        blocked if any house on the floor has a current occupancy.
         """
         floor = self._repo.get_floor(society_id, floor_id)
         if floor is None:
@@ -1028,6 +1035,11 @@ class OnboardingService:
         if self._repo.has_non_empty_houses_for_floor(floor_id):
             raise ConflictError(
                 "Cannot delete a floor with occupied houses.",
+                details={"floor_id": floor_id},
+            )
+        if self._repo.has_current_occupancy_for_floor(floor_id):
+            raise ConflictError(
+                "Cannot delete: houses have active occupancy.",
                 details={"floor_id": floor_id},
             )
 
@@ -1049,7 +1061,8 @@ class OnboardingService:
     ) -> None:
         """Delete a single house, guarded by its own status='empty' (spec §4).
 
-        NOTE: the fuller dues/occupancy guard is DEFERRED (see ``delete_building``).
+        The occupancy guard is now ACTIVE (defense-in-depth): deletion is also
+        blocked if the house has a current occupancy.
         """
         house = self._repo.get_house(society_id, house_id)
         if house is None:
@@ -1060,6 +1073,11 @@ class OnboardingService:
             raise ConflictError(
                 "Cannot delete an occupied house.",
                 details={"house_id": house_id, "status": house.status},
+            )
+        if self._repo.has_current_occupancy_for_house(house_id):
+            raise ConflictError(
+                "Cannot delete: houses have active occupancy.",
+                details={"house_id": house_id},
             )
 
         before = self._house_snapshot(house)

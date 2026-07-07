@@ -23,9 +23,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.common.errors import ConflictError, NotFoundError
+from app.common.time import utcnow
 from app.platform.audit.service import AuditService
 from app.platform.auth.token_service import TokenService
 from app.platform.bootstrap import SOCIETY_ADMIN
@@ -224,38 +226,62 @@ class UserProvisioningService:
                 society_id, self._ADMIN_ROLE_KEY, actor_user_id
             )
 
-    # --- house access (SKELETON — docs/PF §8/§14.8) ------------------------
+    # --- house access (docs/PF §8/§14.8) -----------------------------------
 
     def revoke_house_access(
         self, *, user_id: int, house_id: int, actor_user_id: int | None
     ) -> None:
         """Revoke a user's access to a house (occupant removal — docs/PF §8/§14.8).
 
-        SKELETON. The ``houses`` / ``house_occupancies`` tables are NOT part of the
-        Platform Foundation, so the occupancy unlink cannot be performed yet. What
-        IS implemented and correct today:
+        Performs the full occupant removal now that the House & Occupancy module
+        owns ``house_occupancies``:
 
+        - Unlink the CURRENT occupancy row for ``(user_id, house_id)``: close its
+          validity window (``is_current=False`` + ``valid_to=<today>``).
         - Revoke all the user's refresh tokens so an old email can't get back in.
         - Deactivate the account ONLY if it is now orphaned — i.e. it holds no
-          remaining ``user_roles``. A user who still has a role (e.g. an owner who
-          keeps their login across owned→rented, §14.8) stays active.
+          remaining ``user_roles`` AND no remaining current occupancy anywhere. A
+          user who still has a role or occupancy (e.g. an owner who keeps their
+          login across owned→rented, §14.8) stays active.
 
-        NOTE: the ``house_occupancies`` unlink wires in when the House & Occupancy
-        module is built; ``house_id`` is currently unused beyond the audit trail.
-        The signature is per the wave-2 contract so that module composes cleanly.
+        NOTE: the signature is per the wave-2 contract so the House & Occupancy
+        module composes cleanly; it is intentionally kept stable.
         Audits ``house.access_revoked``.
         """
+        # Lazy (function-local) import: platform must not import a feature module
+        # at module-load time (docs/PF §3 — no backward platform→module dep).
+        from app.modules.houses.models import HouseOccupancy
+
         user = self._require_user(user_id)
 
-        # TODO(house-module): delete the house_occupancies row linking
-        # (user_id, house_id) once that table exists (docs/PF §3/§14.8).
+        # Unlink the current occupancy row linking (user_id, house_id): close its
+        # validity window rather than deleting (occupancy is append-only history).
+        occupancy = self._session.execute(
+            select(HouseOccupancy).where(
+                HouseOccupancy.user_id == user_id,
+                HouseOccupancy.house_id == house_id,
+                HouseOccupancy.is_current.is_(True),
+            )
+        ).scalar_one_or_none()
+        occupancy_unlinked = False
+        if occupancy is not None:
+            occupancy.is_current = False
+            occupancy.valid_to = utcnow().date()
+            self._session.flush()
+            occupancy_unlinked = True
 
         TokenService(self._session).revoke_all_for_user(user.id)
 
-        # Orphan = no remaining roles. (Once house_occupancies exists, "orphaned"
-        # also requires no remaining occupancy — docs/PF §14.8 item 8.)
+        # Orphan = no remaining roles AND no remaining current occupancy anywhere
+        # (docs/PF §14.8 item 8). Both must hold before we deactivate the login.
         remaining_roles = self._repo.count_user_roles(user.id)
-        orphaned = remaining_roles == 0
+        has_current_occupancy = self._session.execute(
+            select(HouseOccupancy.id).where(
+                HouseOccupancy.user_id == user_id,
+                HouseOccupancy.is_current.is_(True),
+            ).limit(1)
+        ).first() is not None
+        orphaned = remaining_roles == 0 and not has_current_occupancy
         deactivated = False
         if orphaned and user.is_active:
             user.is_active = False
@@ -269,6 +295,7 @@ class UserProvisioningService:
             entity_id=user.id,
             before={"house_id": house_id},
             after={
+                "occupancy_unlinked": occupancy_unlinked,
                 "tokens_revoked": True,
                 "orphaned": orphaned,
                 "deactivated": deactivated,
