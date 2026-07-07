@@ -357,14 +357,20 @@ class HouseService:
             return
 
         if payload.email == cur_owner.email:
-            # Same owner — update details, keep the login.
+            # Same owner — update details, keep the login. ID proof is RETAINED
+            # across status changes (spec §4): a payload that omits it (None) must
+            # not wipe the stored proof — carry it over. persons_living, by
+            # contrast, is taken as-is: required for owned, intentionally cleared
+            # to None for to_let/for_sale (spec §3 decision 3).
             before = self._occupancy_fields(cur_owner)
             cur_owner.full_name = payload.full_name
             cur_owner.email = payload.email
             cur_owner.contact_number = payload.contact_number
             cur_owner.persons_living = payload.persons_living
-            cur_owner.id_proof_type = payload.id_proof_type
-            cur_owner.id_proof_document_id = payload.id_proof_document_id
+            if payload.id_proof_type is not None:
+                cur_owner.id_proof_type = payload.id_proof_type
+            if payload.id_proof_document_id is not None:
+                cur_owner.id_proof_document_id = payload.id_proof_document_id
             self._session.flush()
             after = self._occupancy_fields(cur_owner)
             audit.record(
@@ -487,13 +493,18 @@ class HouseService:
             )
             return
 
+        # In-place tenant edit. ID proof is retained when the payload omits it
+        # (carry-over), mirroring the owner path; the rest is taken as-is
+        # (full_name/contact_number/persons_living are required for rented).
         before = self._occupancy_fields(cur_tenant)
         cur_tenant.full_name = payload.full_name
         cur_tenant.email = payload.email
         cur_tenant.contact_number = payload.contact_number
         cur_tenant.persons_living = payload.persons_living
-        cur_tenant.id_proof_type = payload.id_proof_type
-        cur_tenant.id_proof_document_id = payload.id_proof_document_id
+        if payload.id_proof_type is not None:
+            cur_tenant.id_proof_type = payload.id_proof_type
+        if payload.id_proof_document_id is not None:
+            cur_tenant.id_proof_document_id = payload.id_proof_document_id
         self._session.flush()
         after = self._occupancy_fields(cur_tenant)
         audit.record(
