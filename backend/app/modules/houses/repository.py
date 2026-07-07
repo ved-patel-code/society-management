@@ -15,7 +15,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.modules.houses.models import HouseOccupancy, HouseStatusHistory
-from app.modules.onboarding.models import House
+from app.modules.onboarding.models import Building, House
 
 
 class HouseRepository:
@@ -76,6 +76,25 @@ class HouseRepository:
             .all()
         )
         return list(rows), int(total)
+
+    def buildings_by_ids(
+        self, building_ids: set[int]
+    ) -> dict[int, Building]:
+        """Fetch buildings for a set of ids in ONE query (display-code batch).
+
+        Returns an ``{id: Building}`` map so a house list can derive display codes
+        without a per-row building lookup (no N+1). Empty input → no query.
+        """
+        if not building_ids:
+            return {}
+        rows = (
+            self._session.execute(
+                select(Building).where(Building.id.in_(building_ids))
+            )
+            .scalars()
+            .all()
+        )
+        return {b.id: b for b in rows}
 
     # --- occupancies -------------------------------------------------------
 

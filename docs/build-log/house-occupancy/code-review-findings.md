@@ -40,9 +40,13 @@ with the rest of the codebase. No security impact (both checks must pass).
 **3. No module tests yet.** *Expected* — this is the next phase (Phase 3 test
 gate). Covered there.
 
-**4. `list_houses` point-loads a `Building` per row (mild N+1).** *Acceptable for
-v1.* `session.get` hits the identity map, so it is bounded by distinct buildings
-per page (≤ page size). Logged for a future batch-fetch optimization.
+**4. `list_houses` point-loads a `Building` per row (N+1).** **Fixed** (promoted
+to must-fix on review). `list_houses` now batch-loads the page's buildings in one
+`WHERE id IN (...)` query (`HouseRepository.buildings_by_ids`) and passes each
+building into `_to_house_out`, which no longer issues its own query. Verified:
+20 houses across 5 distinct buildings issues exactly 3 SELECTs (count + page +
+one batched building fetch), constant regardless of page size — no reliance on
+the identity-map cache.
 
 ## Nits (no action)
 

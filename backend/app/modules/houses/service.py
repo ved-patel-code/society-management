@@ -74,7 +74,13 @@ class HouseService:
             offset=offset,
             limit=limit,
         )
-        return [self._to_house_out(h) for h in houses], total
+        # Batch-load the page's buildings in one query (no per-row lookup / N+1).
+        building_ids = {h.building_id for h in houses if h.building_id is not None}
+        buildings = self._repo.buildings_by_ids(building_ids)
+        return [
+            self._to_house_out(h, buildings.get(h.building_id))
+            for h in houses
+        ], total
 
     def get_house_detail(self, society_id: int, house_id: int) -> HouseDetailOut:
         """House + current owner/tenant occupancy (docs §6)."""
@@ -82,7 +88,7 @@ class HouseService:
         owner = self._repo.current_occupancy(house_id, "owner")
         tenant = self._repo.current_occupancy(house_id, "tenant")
         return HouseDetailOut(
-            house=self._to_house_out(house),
+            house=self._to_house_out(house, self._building_for(house)),
             owner=OccupancyOut.model_validate(owner) if owner else None,
             tenant=OccupancyOut.model_validate(tenant) if tenant else None,
         )
@@ -575,10 +581,22 @@ class HouseService:
             )
         return house
 
-    def _to_house_out(self, house: House) -> HouseOut:
-        """Shape a house row + derive its display code (never stored)."""
+    def _building_for(self, house: House) -> Building | None:
+        """The house's building (single-house callers). Returns None for
+        individual-type houses. List callers batch-load instead (no N+1)."""
+        if house.building_id is None:
+            return None
+        return self._session.get(Building, house.building_id)
+
+    def _to_house_out(
+        self, house: House, building: Building | None
+    ) -> HouseOut:
+        """Shape a house row + derive its display code (never stored).
+
+        ``building`` is passed in by the caller — batch-loaded for lists, fetched
+        once for a single house — so this never issues a per-row query.
+        """
         if house.building_id is not None:
-            building = self._session.get(Building, house.building_id)
             separator = "-"
             name = ""
             if building is not None:
