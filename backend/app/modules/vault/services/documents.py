@@ -79,11 +79,16 @@ class DocumentService:
 
         Strips any path component and rejects traversal/empty names
         (``/``, ``\\``, ``..``) → ValidationError; enforces the 255-char cap.
+        Trailing dots/spaces are stripped so the denylist sees the true
+        extension — ``evil.exe.`` / ``evil.exe `` must not slip past the
+        ``.exe`` check (and Windows drops them anyway).
         """
         raw = (filename or "").strip()
         # Take the basename regardless of separator style (defends against both
         # POSIX and Windows path fragments in a client-supplied name).
         base = raw.replace("\\", "/").rsplit("/", 1)[-1].strip()
+        # Normalize trailing dots/spaces before extension analysis.
+        base = base.rstrip(". ")
         if not base or base in {".", ".."}:
             raise ValidationError(
                 "Invalid filename.", details={"filename": filename}
@@ -215,8 +220,10 @@ class DocumentService:
         self._check_file_type(society_id, safe_name, content_type)
 
         # 4. Quota (413) — no per-file cap; only the available-storage check.
+        #    Lock the usage row so concurrent uploads can't both pass the check
+        #    or lose an increment (TOCTOU / lost-update — docs §4).
         size = len(data)
-        usage = self._repo.get_or_create_usage(society_id)
+        usage = self._repo.get_or_create_usage(society_id, lock=True)
         society = self._session.get(Society, society_id)
         if society is None:
             raise NotFoundError(
@@ -324,14 +331,24 @@ class DocumentService:
             )
         doc = self._require_live_document(society_id, document_id)
 
+        # Resolve the FINAL folder first so a combined rename+move disambiguates
+        # against the DESTINATION (not the source) — otherwise a file free at the
+        # destination could still gain a spurious " (1)" from the source folder.
+        move_requested = (
+            req.folder_id is not None and req.folder_id != doc.folder_id
+        )
+        if move_requested:
+            self._require_live_folder(society_id, req.folder_id)
+        dest_folder_id = req.folder_id if move_requested else doc.folder_id
+
         # Rename — sanitize + re-check the denylist (renaming to .exe is blocked)
-        # + collision in the CURRENT folder.
+        # + collision in the DESTINATION folder.
         if req.filename is not None:
             before_name = doc.filename
             new_name = self._sanitize_filename(req.filename)
             self._check_file_type(society_id, new_name, doc.content_type)
             new_name = self._disambiguate_filename(
-                society_id, doc.folder_id, new_name
+                society_id, dest_folder_id, new_name
             )
             if new_name != before_name:
                 doc.filename = new_name
@@ -346,11 +363,10 @@ class DocumentService:
                     after={"filename": new_name},
                 )
 
-        # Move — destination must be a live folder in this society; check for a
-        # name collision there.
-        if req.folder_id is not None and req.folder_id != doc.folder_id:
+        # Move — collision in the destination (name is already destination-unique
+        # if it was just renamed above, so this is a no-op in that case).
+        if move_requested:
             before_folder = doc.folder_id
-            self._require_live_folder(society_id, req.folder_id)
             doc.filename = self._disambiguate_filename(
                 society_id, req.folder_id, doc.filename
             )

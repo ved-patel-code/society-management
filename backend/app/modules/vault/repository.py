@@ -237,12 +237,31 @@ class VaultRepository:
             )
         ).scalar_one_or_none()
 
-    def get_or_create_usage(self, society_id: int) -> SocietyStorageUsage:
-        usage = self.get_usage(society_id)
+    def get_or_create_usage(
+        self, society_id: int, *, lock: bool = False
+    ) -> SocietyStorageUsage:
+        """The society's usage row, creating it if absent.
+
+        ``lock=True`` takes a row-level ``SELECT ... FOR UPDATE`` so a
+        read-check-increment (the upload quota path) is serialized against
+        concurrent writers — without it two parallel uploads can both pass the
+        quota check and over-commit, or lose an increment (docs §4).
+        """
+        stmt = select(SocietyStorageUsage).where(
+            SocietyStorageUsage.society_id == society_id
+        )
+        if lock:
+            stmt = stmt.with_for_update()
+        usage = self._session.execute(stmt).scalar_one_or_none()
         if usage is None:
             usage = SocietyStorageUsage(society_id=society_id, used_bytes=0)
             self._session.add(usage)
             self._session.flush()
+            if lock:
+                # Lock the freshly-inserted row so the increment stays serialized.
+                self._session.execute(
+                    stmt.where(SocietyStorageUsage.id == usage.id)
+                ).scalar_one()
         return usage
 
     def sum_all_document_bytes(self, society_id: int) -> int:

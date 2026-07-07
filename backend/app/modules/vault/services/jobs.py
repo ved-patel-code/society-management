@@ -63,7 +63,7 @@ def purge_trash(retention_days: int = DEFAULT_TRASH_RETENTION_DAYS) -> dict[str,
 
         total_freed = 0
         for society_id, freed in freed_by_society.items():
-            usage = repo.get_or_create_usage(society_id)
+            usage = repo.get_or_create_usage(society_id, lock=True)
             usage.used_bytes = max(0, usage.used_bytes - freed)
             total_freed += freed
             audit.record(

@@ -138,12 +138,15 @@ class TrashService:
 
         doc.deleted_at = None
         doc.deleted_by = None
-        # Avoid colliding with a live sibling of the same filename.
-        existing = self._repo.find_document_by_name(
-            society_id, doc.folder_id, doc.filename
+        # Avoid colliding with a live sibling of the same filename (documents
+        # have no unique index, but keep names distinct for a clean UX).
+        doc.filename = self._unique_restored_name(
+            doc.filename,
+            lambda name: self._repo.find_document_by_name(
+                society_id, doc.folder_id, name
+            ),
+            self_id=doc.id,
         )
-        if existing is not None and existing.id != doc.id:
-            doc.filename = f"{doc.filename} (restored)"
 
         self._session.flush()
         self._audit_restored(society_id, doc.id, ITEM_TYPE_DOCUMENT, actor_user_id)
@@ -171,12 +174,16 @@ class TrashService:
             if parent is not None:
                 self._rehydrate_chain(society_id, parent)
 
-        # Avoid colliding with a live sibling folder of the same name.
-        existing = self._repo.find_folder_by_name(
-            society_id, folder.parent_id, folder.name
+        # Avoid colliding with a live sibling folder of the same name. Folders
+        # DO have a partial-unique index, so an un-looped suffix could itself
+        # collide and raise IntegrityError — loop until the name is free.
+        folder.name = self._unique_restored_name(
+            folder.name,
+            lambda name: self._repo.find_folder_by_name(
+                society_id, folder.parent_id, name
+            ),
+            self_id=folder.id,
         )
-        if existing is not None and existing.id != folder.id:
-            folder.name = f"{folder.name} (restored)"
 
         self._session.flush()
         self._audit_restored(society_id, folder.id, ITEM_TYPE_FOLDER, actor_user_id)
@@ -193,6 +200,12 @@ class TrashService:
         descendant that is still in the trash, i.e. the cascade that was deleted
         with it. Cycle-guarded by tracking visited folder ids.
         """
+        # Bucket trashed documents by folder once (avoids a full society-wide
+        # trashed-docs scan per folder in the subtree — was O(folders × docs)).
+        docs_by_folder: dict[int, list[VaultDocument]] = {}
+        for doc in self._repo.list_trashed_documents(society_id):
+            docs_by_folder.setdefault(doc.folder_id, []).append(doc)
+
         stack: list[VaultFolder] = [folder]
         seen: set[int] = set()
         while stack:
@@ -202,16 +215,39 @@ class TrashService:
             seen.add(cur.id)
             cur.deleted_at = None
             # Un-trash trashed documents directly inside this folder.
-            for doc in self._repo.list_trashed_documents(society_id):
-                if doc.folder_id == cur.id and doc.deleted_at is not None:
-                    doc.deleted_at = None
-                    doc.deleted_by = None
+            for doc in docs_by_folder.get(cur.id, []):
+                doc.deleted_at = None
+                doc.deleted_by = None
             # Recurse into trashed child folders.
             for child in self._repo.list_child_folders(
                 society_id, cur.id, include_trashed=True
             ):
                 if child.deleted_at is not None and child.id not in seen:
                     stack.append(child)
+
+    @staticmethod
+    def _unique_restored_name(name, find_by_name, *, self_id: int) -> str:
+        """A sibling-unique name for a restored item.
+
+        Returns ``name`` unchanged if free; otherwise appends ``" (restored)"``,
+        then ``" (restored 2)"``, ``" (restored 3)"`` … until no LIVE sibling
+        matches. Looping matters for folders (partial-unique index → an
+        un-looped single suffix could itself collide and raise IntegrityError).
+        ``find_by_name(name)`` returns a matching live row (or None); a match on
+        the item itself (``self_id``) is not a collision.
+        """
+        def _taken(candidate: str) -> bool:
+            existing = find_by_name(candidate)
+            return existing is not None and existing.id != self_id
+
+        if not _taken(name):
+            return name
+        candidate = f"{name} (restored)"
+        n = 2
+        while _taken(candidate):
+            candidate = f"{name} (restored {n})"
+            n += 1
+        return candidate
 
     def _rehydrate_chain(self, society_id: int, folder: VaultFolder) -> None:
         """Walk ``parent_id`` up, un-trashing any trashed ancestor (docs §4)."""
@@ -273,7 +309,7 @@ class TrashService:
             deleted_count += 1
         self._session.flush()
 
-        usage = self._repo.get_or_create_usage(society_id)
+        usage = self._repo.get_or_create_usage(society_id, lock=True)
         usage.used_bytes = max(0, usage.used_bytes - freed_bytes)
         self._session.flush()
 
