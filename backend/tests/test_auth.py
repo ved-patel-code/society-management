@@ -387,10 +387,27 @@ def _me_status(client, token):
 
 def test_jwt_tampered_signature_rejected(client, make_token, superadmin):
     token = make_token(user_id=superadmin.id, password_state="active")
-    # Mutate a character in the signature segment.
+    # Tamper the signature at the BYTE level. Flipping a base64url *character*
+    # (esp. the last one) is unreliable: the final char carries "don't care"
+    # trailing bits, so a different char can decode to the SAME signature bytes
+    # and the token still validates — an intermittent false pass. Decode → flip a
+    # byte → re-encode guarantees a genuinely different, invalid signature.
+    import base64
+
     head, payload, sig = token.split(".")
-    flipped = "A" if sig[-1] != "A" else "B"
-    tampered = f"{head}.{payload}.{sig[:-1]}{flipped}"
+
+    def _b64url_decode(seg: str) -> bytes:
+        return base64.urlsafe_b64decode(seg + "=" * (-len(seg) % 4))
+
+    def _b64url_encode(raw: bytes) -> str:
+        return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
+
+    sig_bytes = _b64url_decode(sig)
+    tampered_bytes = bytes([sig_bytes[0] ^ 0xFF]) + sig_bytes[1:]
+    tampered = f"{head}.{payload}.{_b64url_encode(tampered_bytes)}"
+
+    # Guard: the tamper genuinely changed the signature bytes.
+    assert tampered_bytes != sig_bytes
     assert _me_status(client, tampered) == 401
 
 
