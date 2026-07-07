@@ -28,7 +28,8 @@ docker compose exec backend bash scripts/run-tests.sh   # tests (isolated societ
 ```
 API + Swagger UI at `http://localhost:8000/docs`.
 
-> Status: **implementation, backend-first.** Module 0 (Platform Foundation — auth,
-> roles/permissions, societies, module allocation, tenant scoping, audit) is **built,
-> tested, and on `main`**. All modules are designed (`docs/`); the remaining modules are
-> built one at a time on feature branches. See `docs/implemented/` for as-built indexes.
+> Status: **implementation, backend-first.** Built, tested, and on `main`: Module 0
+> (Platform Foundation), Module 1 (Onboarding), Module 2 (House & Occupancy), and
+> Module 3 (Vault — document storage on MinIO). All modules are designed (`docs/`);
+> the remaining modules are built one at a time on feature branches. See
+> `docs/implemented/` for as-built indexes.
