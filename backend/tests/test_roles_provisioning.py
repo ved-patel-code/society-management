@@ -132,7 +132,10 @@ def test_create_role_no_auth_unauthorized(client, society):
 
 def test_set_role_permissions_updates_and_audits(client, auth, db, society):
     headers = _super_headers(auth)
-    _add_permission(db, "houses.update_status", module_key="houses")
+    # Synthetic key not owned by any registered module — the baseline seed now
+    # inserts every registered module's permissions (incl. houses.*), so a real
+    # module key would clash with the seed on this fresh-society insert.
+    _add_permission(db, "testmod.assignable", module_key="testmod")
 
     role_resp = client.post(
         f"/admin/societies/{society.id}/roles",
@@ -145,14 +148,14 @@ def test_set_role_permissions_updates_and_audits(client, auth, db, society):
     resp = client.put(
         f"/admin/roles/{role_id}/permissions",
         headers=headers,
-        json={"permission_keys": ["houses.update_status"]},
+        json={"permission_keys": ["testmod.assignable"]},
     )
     assert resp.status_code == 200, resp.text
-    assert resp.json()["permission_keys"] == ["houses.update_status"]
+    assert resp.json()["permission_keys"] == ["testmod.assignable"]
 
     # DB: role_permissions row written.
     perm = db.execute(
-        select(Permission).where(Permission.key == "houses.update_status")
+        select(Permission).where(Permission.key == "testmod.assignable")
     ).scalar_one()
     rp = db.execute(
         select(RolePermission).where(
@@ -173,7 +176,7 @@ def test_set_role_permissions_updates_and_audits(client, auth, db, society):
     ).scalars().first()
     assert audit is not None
     assert audit.before == {"permission_keys": []}
-    assert audit.after == {"permission_keys": ["houses.update_status"]}
+    assert audit.after == {"permission_keys": ["testmod.assignable"]}
 
 
 def test_set_role_permissions_unknown_key_422(client, auth, db, society):

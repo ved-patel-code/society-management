@@ -17,6 +17,7 @@ from app.core.db import Base
 # Import every model module so all tables register on Base.metadata.
 import app.platform.models  # noqa: F401,E402
 import app.modules.onboarding.models  # noqa: F401,E402
+import app.modules.houses.models  # noqa: F401,E402
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url)
