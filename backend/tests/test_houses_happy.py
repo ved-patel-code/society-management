@@ -16,6 +16,7 @@ from tests._houses_helpers import (
     _audit,
     _make_building_with_houses,
     _make_individual_houses,
+    _make_vault_doc,
     _occ,
     _owner,
     _set_status,
@@ -112,21 +113,22 @@ def test_owned_to_to_let_to_owned_owner_login_and_id_proof_retained(
     hdr = _setup(db, society, admin_user, superadmin, auth)
     houses = _make_building_with_houses(auth, hdr)
     hid = houses[0]["id"]
+    did = _make_vault_doc(db, society.id)
     _set_status(
         auth, hdr, hid, "owned",
-        _owner(persons_living=2, id_proof_type="aadhaar", id_proof_document_id=7),
+        _owner(persons_living=2, id_proof_type="aadhaar", id_proof_document_id=did),
     )
     r1 = _set_status(auth, hdr, hid, "to_let", _owner())
     assert r1.status_code == 200, r1.text
     assert r1.json()["owner"]["id_proof_type"] == "aadhaar"
-    assert r1.json()["owner"]["id_proof_document_id"] == 7
+    assert r1.json()["owner"]["id_proof_document_id"] == did
     same_user_id = r1.json()["owner"]["user_id"]
 
     r2 = _set_status(auth, hdr, hid, "owned", _owner(persons_living=4))
     assert r2.status_code == 200, r2.text
     assert r2.json()["owner"]["user_id"] == same_user_id
     assert r2.json()["owner"]["id_proof_type"] == "aadhaar"
-    assert r2.json()["owner"]["id_proof_document_id"] == 7
+    assert r2.json()["owner"]["id_proof_document_id"] == did
 
 
 # ===========================================================================
@@ -323,13 +325,14 @@ def test_id_proof_roundtrip_owner(db, society, admin_user, superadmin, auth):
     hdr = _setup(db, society, admin_user, superadmin, auth)
     houses = _make_building_with_houses(auth, hdr)
     hid = houses[0]["id"]
+    did = _make_vault_doc(db, society.id)
     resp = _set_status(
         auth, hdr, hid, "owned",
-        _owner(persons_living=1, id_proof_type="pan", id_proof_document_id=42),
+        _owner(persons_living=1, id_proof_type="pan", id_proof_document_id=did),
     )
     assert resp.status_code == 200, resp.text
     assert resp.json()["owner"]["id_proof_type"] == "pan"
-    assert resp.json()["owner"]["id_proof_document_id"] == 42
+    assert resp.json()["owner"]["id_proof_document_id"] == did
 
 
 # ===========================================================================

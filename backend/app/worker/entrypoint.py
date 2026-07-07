@@ -10,6 +10,7 @@ import logging
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 
+from app.modules.vault.services.jobs import purge_trash, reconcile_usage
 from app.worker.jobs.cleanup import purge_expired_auth_rows
 
 logging.basicConfig(level=logging.INFO)
@@ -25,6 +26,24 @@ def build_scheduler() -> BlockingScheduler:
         hour=3,
         minute=15,
         id="purge_expired_auth_rows",
+        replace_existing=True,
+    )
+    # Vault trash auto-purge daily at 03:30 UTC (docs vault.md §9).
+    scheduler.add_job(
+        purge_trash,
+        trigger="cron",
+        hour=3,
+        minute=30,
+        id="vault_purge_trash",
+        replace_existing=True,
+    )
+    # Vault usage reconcile nightly at 04:00 UTC (docs vault.md §9).
+    scheduler.add_job(
+        reconcile_usage,
+        trigger="cron",
+        hour=4,
+        minute=0,
+        id="vault_reconcile_usage",
         replace_existing=True,
     )
     return scheduler

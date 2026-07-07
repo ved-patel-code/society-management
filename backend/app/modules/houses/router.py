@@ -7,7 +7,7 @@ The router stays thin: resolve tenant → call ``HouseService`` → shape the re
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from sqlalchemy.orm import Session
 
 from app.common.errors import ValidationError
@@ -138,4 +138,40 @@ def edit_occupancy(
     """Edit owner/tenant occupancy details (email change → owner replacement)."""
     return HouseService(session).edit_occupancy(
         _society_id(tenant), house_id, party, body, actor_user_id=auth.user_id
+    )
+
+
+@router.post(
+    "/{house_id}/occupancy/{party}/id-proof",
+    response_model=HouseDetailOut,
+    dependencies=[
+        Depends(require_module("houses")),
+        Depends(require_module("vault")),
+        Depends(require_permission("houses.manage_occupancy")),
+    ],
+)
+async def upload_id_proof(
+    house_id: int,
+    party: str,
+    file: UploadFile = File(...),
+    id_proof_type: str | None = Form(default=None),
+    auth: AuthContext = Depends(require_permission("houses.manage_occupancy")),
+    tenant: TenantContext = Depends(get_tenant_context),
+    session: Session = Depends(get_session),
+) -> HouseDetailOut:
+    """Upload an ID-proof image for the current owner/tenant into the vault.
+
+    Requires BOTH ``houses`` and ``vault`` enabled — ID-proof storage lives in
+    the vault, so a society without it gets the standard module_disabled 403.
+    """
+    data = await file.read()
+    return HouseService(session).set_id_proof(
+        _society_id(tenant),
+        house_id,
+        party,
+        filename=file.filename or "unnamed",
+        content_type=file.content_type or "application/octet-stream",
+        data=data,
+        id_proof_type=id_proof_type,
+        actor_user_id=auth.user_id,
     )

@@ -18,6 +18,7 @@ from app.core.db import Base
 import app.platform.models  # noqa: F401,E402
 import app.modules.onboarding.models  # noqa: F401,E402
 import app.modules.houses.models  # noqa: F401,E402
+import app.modules.vault.models  # noqa: F401,E402
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url)
