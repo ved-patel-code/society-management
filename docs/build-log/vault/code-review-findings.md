@@ -24,16 +24,22 @@ manage; id-proof route requires both `houses`+`vault`).
 | 4 | should | trash.py | `_restore_subtree` re-ran a society-wide trashed-docs query per folder (O(folders×docs)) | Bucket trashed docs by `folder_id` once |
 | 5 | should | documents.py | Combined rename+move disambiguated the name against the SOURCE folder → spurious `(1)` even when free at the destination | Resolve destination first; disambiguate rename against the destination |
 
+## Also fixed (initially accepted, then fixed on request)
+- **#2 orphan MinIO object** — object storage is not transactional with the DB, so
+  a crash between `put_object` and the request commit can leave an object with no
+  backing row (never an orphan ROW). Now swept: `reconcile_usage` lists keys under
+  each society's `societies/{id}/` prefix and deletes any with no live-or-trashed
+  `vault_documents` row (added `ObjectStorage.list_keys` + `all_storage_keys` repo
+  helper). Idempotent, nightly. Tests: `test_reconcile_sweeps_orphan_object`,
+  `test_reconcile_keeps_referenced_objects`.
+- **#7 house folder derived-vs-stored name** — `_assert_no_sibling` now compares
+  against each sibling's DERIVED display name (house folders show the current house
+  code), so a custom folder can't duplicate a renamed house folder's visible name.
+  Test: `test_create_folder_colliding_with_house_derived_name_409`.
+
 ## Deliberately not changed (documented)
-- **#2 orphan MinIO object** — if anything after `put_object` (audit/commit) fails,
-  the row rolls back but the object may remain. This is the *acceptable,
-  reconcilable* failure mode (no orphan ROW is ever produced; `reconcile_usage`
-  re-sums rows and purge only touches keyed objects). Not a data-integrity break.
-- **#7 house folder derived-vs-stored name** — collision checks use the stored
-  name while the UI shows the derived house code. Impact is negligible (system
-  folders are few, admin-only) and fixing it would couple every collision check to
-  onboarding lookups. Left as-is.
 - **empty_trash `_folder_depth` per-folder walk** — bounded by (shallow) tree depth
   on a rare admin action; not worth pre-computing.
 
-Post-fix: app imports clean, `alembic check` clean, full suite green (372).
+Post-fix: app imports clean, `alembic check` clean, full suite green (524 passed,
+1 skipped).

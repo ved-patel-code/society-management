@@ -201,13 +201,20 @@ class FolderService:
         The DB partial-unique does NOT cover root-level siblings (SQL NULL is
         distinct), so this in-service check guards BOTH root and non-root. When
         renaming, ``exclude_id`` skips the folder itself.
+
+        Compares against each sibling's DISPLAY name — which for a house system
+        folder is DERIVED from the current house code, not the stored name — so a
+        custom folder can't be created with a name that visually duplicates a
+        renamed house folder (the stored name may be stale after a renumber).
         """
-        existing = self._repo.find_folder_by_name(society_id, parent_id, name)
-        if existing is not None and existing.id != exclude_id:
-            raise ConflictError(
-                "A folder with this name already exists here.",
-                details={"parent_id": parent_id, "name": name},
-            )
+        for sib in self._repo.list_child_folders(society_id, parent_id):
+            if sib.id == exclude_id:
+                continue
+            if name in (sib.name, self._display_name(sib)):
+                raise ConflictError(
+                    "A folder with this name already exists here.",
+                    details={"parent_id": parent_id, "name": name},
+                )
 
     # --- writes -----------------------------------------------------------
 

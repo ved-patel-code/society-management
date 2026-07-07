@@ -112,15 +112,23 @@ def _folder_depth(repo: VaultRepository, folder) -> int:  # type: ignore[no-unty
 
 
 def reconcile_usage() -> dict[str, int]:
-    """Re-sum ``vault_documents`` per society and correct ``used_bytes`` drift.
+    """Re-sum ``vault_documents`` per society, correct ``used_bytes`` drift, and
+    sweep orphan storage objects.
 
     Considers every society that has a ``society_storage_usage`` row OR any
     ``vault_documents`` (live or trashed). Recomputes the authoritative total
     (live + trashed bytes) and overwrites the stored value when it differs.
+
+    Orphan sweep: object storage is not transactional with the DB, so a crash
+    between ``put_object`` and the request commit can leave an object with no
+    backing row (an orphan OBJECT — never an orphan row). For each society this
+    lists the keys under ``societies/{id}/`` and deletes any that no live-or-
+    trashed ``vault_documents`` row references. Idempotent.
     """
     session = SessionLocal()
     try:
         repo = VaultRepository(session)
+        storage = get_storage()
 
         society_ids: set[int] = set()
         society_ids.update(
@@ -135,6 +143,7 @@ def reconcile_usage() -> dict[str, int]:
         )
 
         corrections = 0
+        orphans_deleted = 0
         for society_id in society_ids:
             actual = repo.sum_all_document_bytes(society_id)
             usage = repo.get_or_create_usage(society_id)
@@ -142,10 +151,18 @@ def reconcile_usage() -> dict[str, int]:
                 usage.used_bytes = actual
                 corrections += 1
 
+            # Orphan-object sweep: delete stored keys with no backing row.
+            referenced = repo.all_storage_keys(society_id)
+            for key in storage.list_keys(f"societies/{society_id}/"):
+                if key not in referenced:
+                    storage.delete_object(key)
+                    orphans_deleted += 1
+
         session.commit()
         result = {
             "societies_reconciled": len(society_ids),
             "corrections": corrections,
+            "orphans_deleted": orphans_deleted,
         }
         logger.info("Vault usage reconcile: %s", result)
         return result

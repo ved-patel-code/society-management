@@ -44,6 +44,10 @@ class InMemoryStorage(ObjectStorage):
         """Remove ``key`` (a missing object is a no-op)."""
         self._objects.pop(key, None)
 
+    def list_keys(self, prefix: str) -> list[str]:
+        """Every stored key under ``prefix``."""
+        return [k for k in self._objects if k.startswith(prefix)]
+
     # -- test helpers -------------------------------------------------------
 
     def exists(self, key: str) -> bool:

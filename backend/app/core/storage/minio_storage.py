@@ -141,3 +141,13 @@ class MinIOStorage(ObjectStorage):
         except S3Error as exc:
             if exc.code != "NoSuchKey":
                 raise
+
+    def list_keys(self, prefix: str) -> list[str]:
+        """Every object key under ``prefix`` (recursive) — orphan-object sweep."""
+        self._ensure_bucket()
+        return [
+            obj.object_name
+            for obj in self._client.list_objects(
+                self._bucket, prefix=prefix, recursive=True
+            )
+        ]

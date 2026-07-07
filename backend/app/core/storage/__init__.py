@@ -49,3 +49,8 @@ class ObjectStorage(ABC):
     def delete_object(self, key: str) -> None:
         """Permanently remove ``key`` (idempotent — a missing key is a no-op)."""
         raise NotImplementedError
+
+    @abstractmethod
+    def list_keys(self, prefix: str) -> list[str]:
+        """Every object key under ``prefix`` (used by the orphan-object sweep)."""
+        raise NotImplementedError

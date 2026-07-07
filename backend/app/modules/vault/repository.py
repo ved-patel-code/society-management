@@ -272,3 +272,16 @@ class VaultRepository:
             )
         ).scalar_one()
         return int(total)
+
+    def all_storage_keys(self, society_id: int) -> set[str]:
+        """Every referenced object key for a society (live AND trashed).
+
+        The orphan-object sweep compares MinIO keys under the society's prefix
+        against this set; a key not here has no backing row and is safe to drop.
+        """
+        rows = self._session.execute(
+            select(VaultDocument.storage_key).where(
+                VaultDocument.society_id == society_id
+            )
+        ).all()
+        return {r[0] for r in rows}

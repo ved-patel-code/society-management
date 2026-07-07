@@ -291,3 +291,48 @@ def test_reconcile_counts_trashed_bytes(db, society, admin_user, superadmin, aut
 
     usage = auth.client.get("/vault/usage", headers=hdr).json()
     assert usage["used_bytes"] == 25
+
+
+def test_reconcile_sweeps_orphan_object(db, society, admin_user, superadmin, auth, storage_override):
+    from app.modules.vault.services.jobs import reconcile_usage
+    from app.modules.vault.models import VaultDocument
+
+    hdr = _setup(db, society, admin_user, superadmin, auth)
+    bills = _create_folder(auth, hdr, "Bills")
+    doc = _upload(auth, hdr, bills["id"], data=b"x" * 20)
+    referenced_key = db.get(VaultDocument, doc["id"]).storage_key
+
+    # Simulate a crash between put_object and commit: an object with no backing
+    # row, under this society's prefix. reconcile_usage() opens its own session
+    # and calls get_storage() — the process-global override is the SAME instance
+    # as storage_override, so the sweep sees this key.
+    orphan_key = f"societies/{society.id}/999999__orphan.pdf"
+    storage_override.put_object(orphan_key, b"x", "application/pdf")
+
+    result = reconcile_usage()
+    db.expire_all()
+
+    assert result["orphans_deleted"] >= 1
+    assert storage_override.get(orphan_key) is None
+    assert orphan_key not in storage_override.list_keys(f"societies/{society.id}/")
+    # The referenced document's object must NOT be swept.
+    assert storage_override.exists(referenced_key)
+
+
+def test_reconcile_keeps_referenced_objects(db, society, admin_user, superadmin, auth, storage_override):
+    from app.modules.vault.services.jobs import reconcile_usage
+    from app.modules.vault.models import VaultDocument
+
+    hdr = _setup(db, society, admin_user, superadmin, auth)
+    bills = _create_folder(auth, hdr, "Bills")
+    doc1 = _upload(auth, hdr, bills["id"], filename="a.pdf", data=b"x" * 10)
+    doc2 = _upload(auth, hdr, bills["id"], filename="b.pdf", data=b"x" * 12)
+    key1 = db.get(VaultDocument, doc1["id"]).storage_key
+    key2 = db.get(VaultDocument, doc2["id"]).storage_key
+
+    result = reconcile_usage()
+    db.expire_all()
+
+    assert result["orphans_deleted"] == 0
+    assert storage_override.exists(key1)
+    assert storage_override.exists(key2)

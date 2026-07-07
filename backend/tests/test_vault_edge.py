@@ -97,6 +97,25 @@ def test_move_regular_folder_into_system_folder_allowed(db, society, admin_user,
     assert resp.status_code == 200, resp.text
 
 
+def test_create_folder_colliding_with_house_derived_name_409(
+    db, society, admin_user, superadmin, auth
+):
+    hdr = _setup(db, society, admin_user, superadmin, auth)
+    houses_root = _houses_root(auth, hdr, db, society, superadmin)
+    # The per-house system folder shows the house's DERIVED display code as its
+    # name (not the stored value). Creating a regular sibling with that exact
+    # derived name must collide (409).
+    house_body = _contents(auth, hdr, houses_root["id"])
+    house_folder = next(f for f in house_body["folders"] if f["system_key"] == "house")
+    derived_code = house_folder["name"]
+    resp = auth.client.post(
+        "/vault/folders",
+        headers=hdr,
+        json={"parent_id": houses_root["id"], "name": derived_code},
+    )
+    assert resp.status_code == 409, resp.text
+
+
 def test_cascade_delete_then_restore_full_subtree(db, society, admin_user, superadmin, auth):
     hdr = _setup(db, society, admin_user, superadmin, auth)
     a = _create_folder(auth, hdr, "A")
