@@ -32,12 +32,23 @@ class MinIOStorage(ObjectStorage):
     """MinIO implementation of the object-storage contract (docs vault.md §3)."""
 
     def __init__(self) -> None:
+        # Pin the region explicitly. Without it, the minio SDK's presigning path
+        # (``Minio._get_region``) issues a live ``GetBucketLocation`` HTTP round
+        # trip against the client's OWN endpoint the first time a bucket is
+        # signed against — which, for ``_signing_client`` below, is exactly the
+        # public/browser-facing host that (per this module's own docstring) may
+        # be unreachable from inside the container. A single-region self-hosted
+        # MinIO has no real "location" to discover, so pinning the standard
+        # default avoids that unnecessary (and here, unreachable) network call.
+        _REGION = "us-east-1"
+
         # Client for in-cluster reads/writes (put/delete).
         self._client = Minio(
             settings.minio_endpoint,
             access_key=settings.minio_root_user,
             secret_key=settings.minio_root_password,
             secure=settings.minio_secure,
+            region=_REGION,
         )
         # Separate client used ONLY for signing presigned GET URLs, bound to the
         # browser-reachable host so the signed host matches the URL the browser
@@ -50,6 +61,7 @@ class MinIOStorage(ObjectStorage):
                 access_key=settings.minio_root_user,
                 secret_key=settings.minio_root_password,
                 secure=settings.minio_secure,
+                region=_REGION,
             )
         else:
             self._signing_client = self._client

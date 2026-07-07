@@ -54,12 +54,18 @@ def purge_trash(retention_days: int = DEFAULT_TRASH_RETENTION_DAYS) -> dict[str,
 
         folders = repo.folders_deleted_before(cutoff)
         # Delete children before parents: deepest-first by parent-chain depth.
+        # Flushed ONE ROW AT A TIME (not batched) — SQLAlchemy's flush() groups
+        # same-table deletes into a single ``executemany`` ordered by primary
+        # key, which silently discards our depth-descending Python sort and can
+        # emit a parent's DELETE before its child's in the same batch, tripping
+        # the (non-deferrable) parent_id FK. A flush per row preserves the
+        # intended child-before-parent order.
         for folder in sorted(
             folders, key=lambda f: _folder_depth(repo, f), reverse=True
         ):
             repo.delete_folder_row(folder)
+            session.flush()
         folders_purged = len(folders)
-        session.flush()
 
         total_freed = 0
         for society_id, freed in freed_by_society.items():

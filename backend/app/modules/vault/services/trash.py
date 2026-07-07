@@ -299,15 +299,19 @@ class TrashService:
 
         trashed_folders = self._repo.list_trashed_folders(society_id)
         # Delete children before parents: order by descending depth so a folder's
-        # descendants are removed before it (parent_id FK is satisfied).
+        # descendants are removed before it (parent_id FK is satisfied). Flushed
+        # ONE ROW AT A TIME — SQLAlchemy's flush() batches same-table deletes
+        # into a single ``executemany`` (ordered by primary key, not our depth
+        # sort), which can emit a parent's DELETE before its child's in the same
+        # batch and trip the non-deferrable ``parent_id`` FK.
         for folder in sorted(
             trashed_folders,
             key=lambda f: self._folder_depth(society_id, f),
             reverse=True,
         ):
             self._repo.delete_folder_row(folder)
+            self._session.flush()
             deleted_count += 1
-        self._session.flush()
 
         usage = self._repo.get_or_create_usage(society_id, lock=True)
         usage.used_bytes = max(0, usage.used_bytes - freed_bytes)
