@@ -20,6 +20,7 @@ from app.common.errors import ConflictError, NotFoundError, ValidationError
 from app.common.time import utcnow
 from app.modules.houses.models import HouseOccupancy, HouseStatusHistory
 from app.modules.houses.repository import HouseRepository
+from app.modules.vault import api as vault_api
 from app.modules.houses.schemas import (
     NON_EMPTY_STATUSES,
     PARTY_TYPES,
@@ -267,6 +268,73 @@ class HouseService:
             entity_id=house.id,
             before=changed_before,
             after=changed_after,
+        )
+        return self.get_house_detail(society_id, house_id)
+
+    def set_id_proof(
+        self,
+        society_id: int,
+        house_id: int,
+        party_type: str,
+        *,
+        filename: str,
+        content_type: str,
+        data: bytes,
+        id_proof_type: str | None,
+        actor_user_id: int,
+    ) -> HouseDetailOut:
+        """Store an ID-proof image for the current owner/tenant (docs §4/§7).
+
+        Files the bytes into the house's vault ``Proof`` folder (auto-created)
+        via the frozen vault contract — atomic with this transaction — then
+        links the resulting document to the current occupancy. Vault enforces the
+        denylist/quota and may raise 413/415 DomainErrors, which propagate.
+        """
+        if party_type not in PARTY_TYPES:
+            raise ValidationError(
+                "Unknown occupancy party.", details={"party_type": party_type}
+            )
+
+        self._require_house(society_id, house_id)
+        occupancy = self._repo.current_occupancy(house_id, party_type)
+        if occupancy is None:
+            raise NotFoundError(f"No current {party_type} for this house.")
+
+        folder = vault_api.ensure_house_folder(
+            self._session,
+            society_id,
+            house_id,
+            kind=vault_api.HOUSE_FOLDER_PROOF,
+            actor_user_id=actor_user_id,
+        )
+        doc = vault_api.store_document(
+            self._session,
+            society_id,
+            folder.id,
+            filename=filename,
+            content_type=content_type,
+            data=data,
+            source="id_proof",
+            source_ref=occupancy.id,
+            actor_user_id=actor_user_id,
+        )
+
+        occupancy.id_proof_document_id = doc.id
+        if id_proof_type is not None:
+            occupancy.id_proof_type = id_proof_type
+        self._session.flush()
+
+        AuditService(self._session).record(
+            action="house.id_proof_uploaded",
+            actor_user_id=actor_user_id,
+            society_id=society_id,
+            entity_type="house",
+            entity_id=house_id,
+            after={
+                "party": party_type,
+                "document_id": doc.id,
+                "occupancy_id": occupancy.id,
+            },
         )
         return self.get_house_detail(society_id, house_id)
 
