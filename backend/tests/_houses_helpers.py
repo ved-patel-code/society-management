@@ -99,6 +99,37 @@ def _make_individual_houses(auth, hdr) -> list[dict]:
     return r.json()
 
 
+def _make_vault_doc(db, society_id, *, filename="idproof.jpg") -> int:
+    """Create a real ``vault_documents`` row and return its id.
+
+    ``house_occupancies.id_proof_document_id`` is a FK to ``vault_documents.id``
+    (wired by Vault migration 0004), so tests that exercise ID-proof retention
+    must reference an existing document rather than an arbitrary integer. Commits
+    so the app's request session (a separate connection) sees the row for the FK
+    check. Each call makes its own root folder, so ``storage_key`` stays unique.
+    """
+    from app.modules.vault.models import VaultDocument, VaultFolder
+
+    folder = VaultFolder(
+        society_id=society_id, parent_id=None, name=f"_t_{filename}", is_system=False
+    )
+    db.add(folder)
+    db.flush()
+    doc = VaultDocument(
+        society_id=society_id,
+        folder_id=folder.id,
+        filename=filename,
+        content_type="image/jpeg",
+        size_bytes=1,
+        storage_key=f"societies/{society_id}/{folder.id}-{filename}",
+        source="id_proof",
+    )
+    db.add(doc)
+    db.flush()
+    db.commit()
+    return doc.id
+
+
 def _owner(**over) -> dict:
     body = {
         "full_name": "Owner One",

@@ -16,6 +16,7 @@ from app.platform.models import AuditLog, User, UserRole
 from tests._houses_helpers import (
     _audit,
     _make_building_with_houses,
+    _make_vault_doc,
     _occ,
     _owner,
     _set_status,
@@ -203,9 +204,10 @@ def test_patch_email_change_carries_over_unchanged_fields_incl_id_proof(
     hdr = _setup(db, society, admin_user, superadmin, auth)
     houses = _make_building_with_houses(auth, hdr)
     hid = houses[0]["id"]
+    did = _make_vault_doc(db, society.id)
     _set_status(
         auth, hdr, hid, "owned",
-        _owner(persons_living=3, id_proof_type="pan", id_proof_document_id=9),
+        _owner(persons_living=3, id_proof_type="pan", id_proof_document_id=did),
     )
     resp = auth.client.patch(
         f"/houses/{hid}/occupancy/owner", headers=hdr, json={"email": "changed2@x.com"}
@@ -216,7 +218,7 @@ def test_patch_email_change_carries_over_unchanged_fields_incl_id_proof(
     assert body["full_name"] == "Owner One"
     assert body["persons_living"] == 3
     assert body["id_proof_type"] == "pan"
-    assert body["id_proof_document_id"] == 9
+    assert body["id_proof_document_id"] == did
 
 
 def test_patch_email_same_after_normalize_is_plain_edit_not_replace(
@@ -447,47 +449,51 @@ def test_id_proof_retained_owned_to_to_let_omitting(db, society, admin_user, sup
     hdr = _setup(db, society, admin_user, superadmin, auth)
     houses = _make_building_with_houses(auth, hdr)
     hid = houses[0]["id"]
+    did = _make_vault_doc(db, society.id)
     _set_status(
         auth, hdr, hid, "owned",
-        _owner(persons_living=1, id_proof_type="voter_id", id_proof_document_id=55),
+        _owner(persons_living=1, id_proof_type="voter_id", id_proof_document_id=did),
     )
     resp = _set_status(auth, hdr, hid, "to_let", _owner())
     assert resp.status_code == 200, resp.text
     assert resp.json()["owner"]["id_proof_type"] == "voter_id"
-    assert resp.json()["owner"]["id_proof_document_id"] == 55
+    assert resp.json()["owner"]["id_proof_document_id"] == did
 
 
 def test_id_proof_retained_via_patch_omitting(db, society, admin_user, superadmin, auth):
     hdr = _setup(db, society, admin_user, superadmin, auth)
     houses = _make_building_with_houses(auth, hdr)
     hid = houses[0]["id"]
+    did = _make_vault_doc(db, society.id)
     _set_status(
         auth, hdr, hid, "owned",
-        _owner(persons_living=1, id_proof_type="pan", id_proof_document_id=3),
+        _owner(persons_living=1, id_proof_type="pan", id_proof_document_id=did),
     )
     resp = auth.client.patch(
         f"/houses/{hid}/occupancy/owner", headers=hdr, json={"contact_number": "1-2-3"}
     )
     assert resp.status_code == 200, resp.text
     assert resp.json()["owner"]["id_proof_type"] == "pan"
-    assert resp.json()["owner"]["id_proof_document_id"] == 3
+    assert resp.json()["owner"]["id_proof_document_id"] == did
 
 
 def test_id_proof_updated_when_provided(db, society, admin_user, superadmin, auth):
     hdr = _setup(db, society, admin_user, superadmin, auth)
     houses = _make_building_with_houses(auth, hdr)
     hid = houses[0]["id"]
+    did = _make_vault_doc(db, society.id)
+    did2 = _make_vault_doc(db, society.id, filename="idproof2.jpg")
     _set_status(
         auth, hdr, hid, "owned",
-        _owner(persons_living=1, id_proof_type="pan", id_proof_document_id=3),
+        _owner(persons_living=1, id_proof_type="pan", id_proof_document_id=did),
     )
     resp = auth.client.patch(
         f"/houses/{hid}/occupancy/owner", headers=hdr,
-        json={"id_proof_type": "aadhaar", "id_proof_document_id": 77},
+        json={"id_proof_type": "aadhaar", "id_proof_document_id": did2},
     )
     assert resp.status_code == 200, resp.text
     assert resp.json()["owner"]["id_proof_type"] == "aadhaar"
-    assert resp.json()["owner"]["id_proof_document_id"] == 77
+    assert resp.json()["owner"]["id_proof_document_id"] == did2
 
 
 def test_id_proof_nullable_roundtrip_on_create(db, society, admin_user, superadmin, auth):
@@ -504,16 +510,17 @@ def test_tenant_id_proof_retained_on_edit(db, society, admin_user, superadmin, a
     hdr = _setup(db, society, admin_user, superadmin, auth)
     houses = _make_building_with_houses(auth, hdr)
     hid = houses[0]["id"]
+    did = _make_vault_doc(db, society.id)
     _set_status(
         auth, hdr, hid, "rented", _owner(),
-        _tenant(id_proof_type="passport", id_proof_document_id=21),
+        _tenant(id_proof_type="passport", id_proof_document_id=did),
     )
     resp = auth.client.patch(
         f"/houses/{hid}/occupancy/tenant", headers=hdr, json={"contact_number": "555-1234"}
     )
     assert resp.status_code == 200, resp.text
     assert resp.json()["tenant"]["id_proof_type"] == "passport"
-    assert resp.json()["tenant"]["id_proof_document_id"] == 21
+    assert resp.json()["tenant"]["id_proof_document_id"] == did
 
 
 # ===========================================================================

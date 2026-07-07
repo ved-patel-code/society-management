@@ -46,11 +46,18 @@ class Settings(BaseSettings):
     # --- Email ---
     email_mode: str = Field(default="test", alias="EMAIL_MODE")  # test | smtp
 
-    # --- MinIO (interface only wired now) ---
+    # --- MinIO / object storage (Vault module — docs/modules/vault.md §3) ---
     minio_endpoint: str = Field(default="minio:9000", alias="MINIO_ENDPOINT")
     minio_root_user: str = Field(default="minioadmin", alias="MINIO_ROOT_USER")
     minio_root_password: str = Field(default="", alias="MINIO_ROOT_PASSWORD")
     minio_secure: bool = Field(default=False, alias="MINIO_SECURE")
+    # Bucket that holds every society's objects (keys are society-prefixed).
+    minio_bucket: str = Field(default="society-vault", alias="MINIO_BUCKET")
+    # Browser-reachable host used when SIGNING presigned URLs. The in-cluster
+    # ``minio_endpoint`` (e.g. ``minio:9000``) only resolves inside the Docker
+    # network; a client on the host needs the published host (e.g.
+    # ``localhost:9000``). Empty → fall back to ``minio_endpoint``.
+    minio_public_endpoint: str = Field(default="", alias="MINIO_PUBLIC_ENDPOINT")
 
     # --- First super-admin seed ---
     superadmin_email: str = Field(default="", alias="SUPERADMIN_EMAIL")

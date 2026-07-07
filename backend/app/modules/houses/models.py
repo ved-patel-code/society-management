@@ -56,10 +56,10 @@ class HouseOccupancy(Base):
     ``user_id`` links to the provisioned login (owner only in v1; tenant login is
     deferred, so tenant rows keep ``user_id=NULL``).
 
-    ``id_proof_document_id`` is a nullable BIGINT with NO foreign key yet — the
-    ``vault_documents`` table does not exist until the Vault module is built. The
-    Vault migration will add ``op.create_foreign_key`` linking this column to
-    ``vault_documents.id`` (docs §3/§7 "wired when Vault built").
+    ``id_proof_document_id`` links a stored ID-proof image in the vault. The FK to
+    ``vault_documents.id`` (ON DELETE SET NULL) was added by the Vault migration
+    (0004) — this column started as a bare BIGINT while Vault did not exist yet
+    (docs §3/§7 "wired when Vault built").
     """
 
     __tablename__ = "house_occupancies"
@@ -97,9 +97,11 @@ class HouseOccupancy(Base):
 
     # Optional ID proof (docs §3/§4 — OPTIONAL everywhere).
     id_proof_type: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # Nullable, NO FK yet — Vault TODO (see class docstring).
+    # FK to the vault document holding the ID-proof image (wired by Vault 0004).
     id_proof_document_id: Mapped[int | None] = mapped_column(
-        BigInteger, nullable=True
+        BigInteger,
+        ForeignKey("vault_documents.id", ondelete="SET NULL"),
+        nullable=True,
     )
 
     is_current: Mapped[bool] = mapped_column(
