@@ -12,23 +12,36 @@ state machine per the plan's pseudocode.
 """
 from __future__ import annotations
 
+from datetime import date
+
 from sqlalchemy.orm import Session
 
-from app.common.errors import NotFoundError
+from app.common.errors import ConflictError, NotFoundError, ValidationError
+from app.common.time import utcnow
+from app.modules.houses.models import HouseOccupancy, HouseStatusHistory
 from app.modules.houses.repository import HouseRepository
 from app.modules.houses.schemas import (
+    NON_EMPTY_STATUSES,
+    PARTY_TYPES,
     HouseDetailOut,
     HouseOut,
     OccupancyEditRequest,
     OccupancyOut,
+    OwnerPayload,
     StatusChangeRequest,
     StatusHistoryOut,
+    TenantPayload,
 )
 from app.modules.onboarding.models import Building, House
 from app.modules.onboarding.numbering import (
     building_display_code,
     individual_display_code,
 )
+from app.platform.audit.service import AuditService
+from app.platform.users.provisioning import UserProvisioningService
+
+# Owner login role — must already exist for the society (seeded on enable).
+_RESIDENT_ROLE = "resident"
 
 
 class HouseService:
@@ -98,8 +111,73 @@ class HouseService:
         *,
         actor_user_id: int,
     ) -> HouseDetailOut:
-        """Change a house's status, capturing the target's occupancy (docs §4/§6)."""
-        raise NotImplementedError  # Wave C
+        """Change a house's status, capturing the target's occupancy (docs §4/§6).
+
+        One transaction (never commits): validate the transition + required
+        fields, reconcile the owner (create/update/replace per email identity)
+        and the tenant (open/edit/close), stamp ``first_left_empty_on`` on the
+        first move away from empty, then — only for a real status change — write
+        the status-history + ``house.status_changed`` audit and the new status.
+        A same-status POST is treated as an edit (reconcile only).
+        """
+        house = self._require_house(society_id, house_id)
+        current = house.status
+
+        self._validate_transition(current, req.to_status)
+        self._validate_required_fields(req)
+
+        audit = AuditService(self._session)
+
+        # Owner is reconciled for every non-empty target (identity = email).
+        cur_owner = self._repo.current_occupancy(house_id, "owner")
+        self._reconcile_owner(
+            society_id, house, cur_owner, req.owner, actor_user_id, audit
+        )
+
+        # Tenant: reconcile when rented, otherwise close any current tenant.
+        cur_tenant = self._repo.current_occupancy(house_id, "tenant")
+        if req.to_status == "rented":
+            assert req.tenant is not None  # guaranteed by required-field validation
+            self._reconcile_tenant(
+                society_id, house, cur_tenant, req.tenant, actor_user_id, audit
+            )
+        elif cur_tenant is not None:
+            # Leaving rented closes the tenant occupancy (status audit covers it).
+            self._repo.close_occupancy(cur_tenant, valid_to=self._today())
+            self._session.flush()
+
+        # first_left_empty_on: once-only, on the first move away from empty.
+        if current == "empty" and house.first_left_empty_on is None:
+            house.first_left_empty_on = self._today()
+
+        # Status history + status write + audit — only for a real transition.
+        if current != req.to_status:
+            snapshot: dict = {"owner": req.owner.model_dump()}
+            if req.to_status == "rented" and req.tenant is not None:
+                snapshot["tenant"] = req.tenant.model_dump()
+            self._repo.add_status_history(
+                HouseStatusHistory(
+                    society_id=society_id,
+                    house_id=house_id,
+                    from_status=current,
+                    to_status=req.to_status,
+                    changed_by=actor_user_id,
+                    snapshot=snapshot,
+                )
+            )
+            house.status = req.to_status
+            self._session.flush()
+            audit.record(
+                action="house.status_changed",
+                actor_user_id=actor_user_id,
+                society_id=society_id,
+                entity_type="house",
+                entity_id=house_id,
+                before={"status": current},
+                after={"status": req.to_status},
+            )
+
+        return self.get_house_detail(society_id, house_id)
 
     def edit_occupancy(
         self,
@@ -110,8 +188,371 @@ class HouseService:
         *,
         actor_user_id: int,
     ) -> HouseDetailOut:
-        """Edit owner/tenant details (email change → owner replacement) (docs §4/§6)."""
-        raise NotImplementedError  # Wave C
+        """Edit owner/tenant details (email change → owner replacement) (docs §4/§6).
+
+        Applies only the provided (non-None) fields to the current occupancy.
+        For the owner, a changed email is the identity-replacement path (close +
+        revoke old login, provision new, open a fresh occupancy carrying over
+        unchanged fields). A tenant email change is a plain field update (no
+        login). ``persons_living`` is re-validated against the current status.
+        """
+        if party_type not in PARTY_TYPES:
+            raise ValidationError(
+                "Unknown occupancy party.", details={"party_type": party_type}
+            )
+
+        house = self._require_house(society_id, house_id)
+        cur = self._repo.current_occupancy(house_id, party_type)
+        if cur is None:
+            raise NotFoundError(f"No current {party_type} for this house.")
+
+        # to_let/for_sale hold no persons_living for the owner (consistent with
+        # change_status). Validated against the house's CURRENT status.
+        if (
+            party_type == "owner"
+            and house.status in {"to_let", "for_sale"}
+            and req.persons_living is not None
+        ):
+            raise ValidationError(
+                "persons_living is not captured for to_let/for_sale."
+            )
+
+        audit = AuditService(self._session)
+
+        # Owner email change → replacement (same as reconcile_owner replace path).
+        if (
+            party_type == "owner"
+            and req.email is not None
+            and req.email != cur.email
+        ):
+            self._replace_owner(
+                society_id,
+                house,
+                cur,
+                self._merged_owner_payload(cur, req),
+                actor_user_id,
+                audit,
+            )
+            return self.get_house_detail(society_id, house_id)
+
+        # Plain in-place edit of the provided fields.
+        before = self._occupancy_fields(cur)
+        for field in (
+            "full_name",
+            "email",
+            "contact_number",
+            "persons_living",
+            "id_proof_type",
+            "id_proof_document_id",
+        ):
+            value = getattr(req, field)
+            if value is not None:
+                setattr(cur, field, value)
+        self._session.flush()
+
+        after = self._occupancy_fields(cur)
+        changed_before = {k: before[k] for k in before if before[k] != after[k]}
+        changed_after = {k: after[k] for k in after if before[k] != after[k]}
+        audit.record(
+            action="house.occupancy_updated",
+            actor_user_id=actor_user_id,
+            society_id=society_id,
+            entity_type="house",
+            entity_id=house.id,
+            before=changed_before,
+            after=changed_after,
+        )
+        return self.get_house_detail(society_id, house_id)
+
+    # --- write helpers (Wave C) --------------------------------------------
+
+    def _validate_transition(self, current: str, to_status: str) -> None:
+        """Legal-transition gate (docs §4): never back to empty; target known."""
+        if to_status == "empty":
+            raise ConflictError("A house can never return to empty.")
+        if to_status not in NON_EMPTY_STATUSES:
+            raise ValidationError("Unknown target status.")
+
+    def _validate_required_fields(self, req: StatusChangeRequest) -> None:
+        """Required-fields-per-target-status gate (docs §4).
+
+        owned needs owner.persons_living; to_let/for_sale forbid it; rented needs
+        a tenant with persons_living. Tenant is only valid for rented.
+        """
+        to_status = req.to_status
+        if to_status == "owned":
+            if req.owner.persons_living is None:
+                raise ValidationError(
+                    "persons_living is required for owned."
+                )
+        elif to_status in {"to_let", "for_sale"}:
+            if req.owner.persons_living is not None:
+                raise ValidationError(
+                    "persons_living is not captured for to_let/for_sale."
+                )
+        elif to_status == "rented":
+            if req.tenant is None:
+                raise ValidationError("tenant is required for rented.")
+            if req.tenant.persons_living is None:
+                raise ValidationError(
+                    "persons_living is required for the tenant."
+                )
+
+        # Tenant payload only makes sense for a rented target.
+        if to_status != "rented" and req.tenant is not None:
+            raise ValidationError(
+                "tenant is only valid for the rented status."
+            )
+
+    def _reconcile_owner(
+        self,
+        society_id: int,
+        house: House,
+        cur_owner: HouseOccupancy | None,
+        payload: OwnerPayload,
+        actor_user_id: int,
+        audit: AuditService,
+    ) -> None:
+        """Create, update, or replace the owner by email identity (docs §4).
+
+        No current owner → provision the login + open the occupancy. Same email →
+        update fields in place (keep the login). Different email → replacement.
+        """
+        if cur_owner is None:
+            provisioning = UserProvisioningService(self._session)
+            user = provisioning.create_or_link_user(
+                email=payload.email,
+                society_id=society_id,
+                role_key=_RESIDENT_ROLE,
+                profile={
+                    "full_name": payload.full_name,
+                    "phone": payload.contact_number,
+                },
+                actor_user_id=actor_user_id,
+            )
+            self._repo.add_occupancy(
+                HouseOccupancy(
+                    society_id=society_id,
+                    house_id=house.id,
+                    party_type="owner",
+                    user_id=user.id,
+                    full_name=payload.full_name,
+                    email=payload.email,
+                    contact_number=payload.contact_number,
+                    persons_living=payload.persons_living,
+                    id_proof_type=payload.id_proof_type,
+                    id_proof_document_id=payload.id_proof_document_id,
+                    is_current=True,
+                    valid_from=self._today(),
+                )
+            )
+            audit.record(
+                action="house.occupancy_created",
+                actor_user_id=actor_user_id,
+                society_id=society_id,
+                entity_type="house",
+                entity_id=house.id,
+                after={"party_type": "owner", "email": payload.email},
+            )
+            return
+
+        if payload.email == cur_owner.email:
+            # Same owner — update details, keep the login.
+            before = self._occupancy_fields(cur_owner)
+            cur_owner.full_name = payload.full_name
+            cur_owner.email = payload.email
+            cur_owner.contact_number = payload.contact_number
+            cur_owner.persons_living = payload.persons_living
+            cur_owner.id_proof_type = payload.id_proof_type
+            cur_owner.id_proof_document_id = payload.id_proof_document_id
+            self._session.flush()
+            after = self._occupancy_fields(cur_owner)
+            audit.record(
+                action="house.occupancy_updated",
+                actor_user_id=actor_user_id,
+                society_id=society_id,
+                entity_type="house",
+                entity_id=house.id,
+                before=before,
+                after=after,
+            )
+            return
+
+        # Different email → owner replaced.
+        self._replace_owner(
+            society_id, house, cur_owner, payload, actor_user_id, audit
+        )
+
+    def _replace_owner(
+        self,
+        society_id: int,
+        house: House,
+        cur_owner: HouseOccupancy,
+        payload: OwnerPayload,
+        actor_user_id: int,
+        audit: AuditService,
+    ) -> None:
+        """Owner-identity replacement (docs §4): close old, revoke, provision new.
+
+        Ordering is load-bearing: close + flush FIRST to free the partial-unique
+        current slot before opening the replacement occupancy.
+        """
+        old_user_id = cur_owner.user_id
+        old_email = cur_owner.email
+
+        self._repo.close_occupancy(cur_owner, valid_to=self._today())
+        self._session.flush()  # free the current slot before the new INSERT
+
+        provisioning = UserProvisioningService(self._session)
+        if old_user_id is not None:
+            provisioning.revoke_house_access(
+                user_id=old_user_id,
+                house_id=house.id,
+                actor_user_id=actor_user_id,
+            )
+
+        new_user = provisioning.create_or_link_user(
+            email=payload.email,
+            society_id=society_id,
+            role_key=_RESIDENT_ROLE,
+            profile={
+                "full_name": payload.full_name,
+                "phone": payload.contact_number,
+            },
+            actor_user_id=actor_user_id,
+        )
+        self._repo.add_occupancy(
+            HouseOccupancy(
+                society_id=society_id,
+                house_id=house.id,
+                party_type="owner",
+                user_id=new_user.id,
+                full_name=payload.full_name,
+                email=payload.email,
+                contact_number=payload.contact_number,
+                persons_living=payload.persons_living,
+                id_proof_type=payload.id_proof_type,
+                id_proof_document_id=payload.id_proof_document_id,
+                is_current=True,
+                valid_from=self._today(),
+            )
+        )
+        audit.record(
+            action="house.owner_replaced",
+            actor_user_id=actor_user_id,
+            society_id=society_id,
+            entity_type="house",
+            entity_id=house.id,
+            before={"user_id": old_user_id, "email": old_email},
+            after={"user_id": new_user.id, "email": payload.email},
+        )
+
+    def _reconcile_tenant(
+        self,
+        society_id: int,
+        house: House,
+        cur_tenant: HouseOccupancy | None,
+        payload: TenantPayload,
+        actor_user_id: int,
+        audit: AuditService,
+    ) -> None:
+        """Open or edit the tenant occupancy (docs §4). Tenant login is deferred,
+        so ``user_id`` stays NULL and there is no replacement flow — always an
+        in-place edit when a current tenant exists.
+        """
+        if cur_tenant is None:
+            self._repo.add_occupancy(
+                HouseOccupancy(
+                    society_id=society_id,
+                    house_id=house.id,
+                    party_type="tenant",
+                    user_id=None,
+                    full_name=payload.full_name,
+                    email=payload.email,
+                    contact_number=payload.contact_number,
+                    persons_living=payload.persons_living,
+                    id_proof_type=payload.id_proof_type,
+                    id_proof_document_id=payload.id_proof_document_id,
+                    is_current=True,
+                    valid_from=self._today(),
+                )
+            )
+            audit.record(
+                action="house.occupancy_created",
+                actor_user_id=actor_user_id,
+                society_id=society_id,
+                entity_type="house",
+                entity_id=house.id,
+                after={"party_type": "tenant", "email": payload.email},
+            )
+            return
+
+        before = self._occupancy_fields(cur_tenant)
+        cur_tenant.full_name = payload.full_name
+        cur_tenant.email = payload.email
+        cur_tenant.contact_number = payload.contact_number
+        cur_tenant.persons_living = payload.persons_living
+        cur_tenant.id_proof_type = payload.id_proof_type
+        cur_tenant.id_proof_document_id = payload.id_proof_document_id
+        self._session.flush()
+        after = self._occupancy_fields(cur_tenant)
+        audit.record(
+            action="house.occupancy_updated",
+            actor_user_id=actor_user_id,
+            society_id=society_id,
+            entity_type="house",
+            entity_id=house.id,
+            before=before,
+            after=after,
+        )
+
+    @staticmethod
+    def _occupancy_fields(occupancy: HouseOccupancy) -> dict:
+        """The editable occupancy fields as a plain JSON-able dict (audit diffs)."""
+        return {
+            "full_name": occupancy.full_name,
+            "email": occupancy.email,
+            "contact_number": occupancy.contact_number,
+            "persons_living": occupancy.persons_living,
+            "id_proof_type": occupancy.id_proof_type,
+            "id_proof_document_id": occupancy.id_proof_document_id,
+        }
+
+    def _merged_owner_payload(
+        self, cur: HouseOccupancy, req: OccupancyEditRequest
+    ) -> OwnerPayload:
+        """Build the replacement owner payload for an edit-driven email change,
+        carrying over any field the edit does not change from the old record.
+        """
+        return OwnerPayload(
+            full_name=req.full_name if req.full_name is not None else cur.full_name,
+            email=req.email,  # replace path only runs when email is provided
+            contact_number=(
+                req.contact_number
+                if req.contact_number is not None
+                else cur.contact_number
+            ),
+            persons_living=(
+                req.persons_living
+                if req.persons_living is not None
+                else cur.persons_living
+            ),
+            id_proof_type=(
+                req.id_proof_type
+                if req.id_proof_type is not None
+                else cur.id_proof_type
+            ),
+            id_proof_document_id=(
+                req.id_proof_document_id
+                if req.id_proof_document_id is not None
+                else cur.id_proof_document_id
+            ),
+        )
+
+    @staticmethod
+    def _today() -> date:
+        """Project-standard 'today' (UTC date), matching provisioning's usage."""
+        return utcnow().date()
 
     # --- helpers -----------------------------------------------------------
 

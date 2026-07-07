@@ -270,6 +270,53 @@ class OnboardingRepository:
         ).first()
         return row is not None
 
+    def has_current_occupancy_for_building(self, building_id: int) -> bool:
+        """Any current occupancy under this building (defense-in-depth guard).
+
+        Lazy-imports ``HouseOccupancy``: Onboarding must not import the House &
+        Occupancy module at load time (that would be a backward dependency —
+        Onboarding created the shared registry the module builds on).
+        """
+        from app.modules.houses.models import HouseOccupancy
+
+        row = self._session.execute(
+            select(HouseOccupancy.id)
+            .join(House, HouseOccupancy.house_id == House.id)
+            .where(
+                House.building_id == building_id,
+                HouseOccupancy.is_current.is_(True),
+            )
+            .limit(1)
+        ).first()
+        return row is not None
+
+    def has_current_occupancy_for_floor(self, floor_id: int) -> bool:
+        """Any current occupancy on this floor (defense-in-depth guard)."""
+        from app.modules.houses.models import HouseOccupancy
+
+        row = self._session.execute(
+            select(HouseOccupancy.id)
+            .join(House, HouseOccupancy.house_id == House.id)
+            .where(
+                House.floor_id == floor_id,
+                HouseOccupancy.is_current.is_(True),
+            )
+            .limit(1)
+        ).first()
+        return row is not None
+
+    def has_current_occupancy_for_house(self, house_id: int) -> bool:
+        """A current occupancy on this house (defense-in-depth guard)."""
+        from app.modules.houses.models import HouseOccupancy
+
+        row = self._session.execute(
+            select(HouseOccupancy.id).where(
+                HouseOccupancy.house_id == house_id,
+                HouseOccupancy.is_current.is_(True),
+            ).limit(1)
+        ).first()
+        return row is not None
+
     # --- guarded deletes (later edits — docs §4) ---------------------------
 
     def delete_house(self, house: House) -> None:
