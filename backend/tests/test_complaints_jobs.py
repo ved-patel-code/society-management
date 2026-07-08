@@ -46,12 +46,18 @@ from tests._complaints_helpers import (
     setup_complaints,
 )
 
-# A fixed run date the whole module pins ``as_of`` to (deterministic window).
+# A fixed run date the whole module pins the window to (deterministic).
 AS_OF = date(2026, 7, 8)
 
 
 def _utc_midnight(d: date) -> datetime:
     return datetime.combine(d, time.min, tzinfo=timezone.utc)
+
+
+# The worker now takes a full aware-UTC instant (``now``), not a date — the run
+# is pinned to midnight of AS_OF so the window math + ``archived_at`` assertions
+# stay exact.
+NOW = _utc_midnight(AS_OF)
 
 
 # ===========================================================================
@@ -167,7 +173,7 @@ def test_archives_old_closed_leaves_recent(
     )
     db.commit()
 
-    result = _run_for_societies(db, [society.id], AS_OF)
+    result = _run_for_societies(db, [society.id], NOW)
     db.expire_all()
 
     assert result == {"societies_processed": 1, "complaints_archived": 1}
@@ -232,7 +238,7 @@ def test_non_closed_never_archived(db, society, admin_user, superadmin, auth):
     )
     db.commit()
 
-    result = _run_for_societies(db, [society.id], AS_OF)
+    result = _run_for_societies(db, [society.id], NOW)
     db.expire_all()
 
     assert result == {"societies_processed": 1, "complaints_archived": 0}
@@ -265,11 +271,11 @@ def test_idempotent_second_run(db, society, admin_user, superadmin, auth):
     )
     db.commit()
 
-    first = _run_for_societies(db, [society.id], AS_OF)
+    first = _run_for_societies(db, [society.id], NOW)
     db.expire_all()
     assert first == {"societies_processed": 1, "complaints_archived": 1}
 
-    again = _run_for_societies(db, [society.id], AS_OF)
+    again = _run_for_societies(db, [society.id], NOW)
     db.expire_all()
     assert again == {"societies_processed": 1, "complaints_archived": 0}
 
@@ -328,7 +334,7 @@ def test_per_society_isolation(db, society, admin_user, superadmin, auth):
     )
     db.commit()
 
-    result = _run_for_societies(db, [society.id, soc_b.id], AS_OF)
+    result = _run_for_societies(db, [society.id, soc_b.id], NOW)
     db.expire_all()
 
     # Two societies processed; one archive each (b_recent held back).
@@ -386,7 +392,7 @@ def test_respects_configured_window(db, society, admin_user, superadmin, auth):
     )
     db.commit()
 
-    result = _run_for_societies(db, [society.id], AS_OF)
+    result = _run_for_societies(db, [society.id], NOW)
     db.expire_all()
 
     assert result == {"societies_processed": 1, "complaints_archived": 1}

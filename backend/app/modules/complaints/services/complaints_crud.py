@@ -36,11 +36,9 @@ from app.modules.complaints.schemas import (
     STATUS_WITHDRAWN,
     ComplaintCreateRequest,
     ComplaintDetailOut,
-    ComplaintImageOut,
     ComplaintListItemOut,
     ComplaintListOut,
     ComplaintUpdateRequest,
-    StatusHistoryOut,
 )
 from app.modules.complaints.services import support
 from app.platform.audit.service import AuditService
@@ -125,7 +123,7 @@ class ComplaintsCrudService:
                 "category_id": req.category_id,
             }
         )
-        return self._detail(complaint)
+        return support.assemble_detail(self._session, self._repo, complaint)
 
     def _resolve_raiser_house(
         self, society_id: int, actor_user_id: int, requested_house_id: int | None
@@ -236,7 +234,7 @@ class ComplaintsCrudService:
                 before=before,
                 after=after,
             )
-        return self._detail(complaint)
+        return support.assemble_detail(self._session, self._repo, complaint)
 
     def withdraw_complaint(
         self, society_id: int, complaint_id: int, *, actor_user_id: int
@@ -281,7 +279,7 @@ class ComplaintsCrudService:
                 "reference": complaint.reference,
             }
         )
-        return self._detail(complaint)
+        return support.assemble_detail(self._session, self._repo, complaint)
 
     def list_complaints(
         self,
@@ -392,7 +390,7 @@ class ComplaintsCrudService:
                     "You may only view complaints on a house you own."
                 )
 
-        detail = self._detail(complaint)
+        detail = support.assemble_detail(self._session, self._repo, complaint)
         # Clear-on-read (docs §6/§7): drop the caller's pending alert for this
         # complaint (no-op until Notifications subscribes).
         events.mark_read_for(caller_user_id, "complaint", complaint_id)
@@ -407,65 +405,3 @@ class ComplaintsCrudService:
                 "Complaint not found.", details={"complaint_id": complaint_id}
             )
         return complaint
-
-    def _detail(self, complaint: Complaint) -> ComplaintDetailOut:
-        """Assemble a :class:`ComplaintDetailOut` for one complaint (docs §6).
-
-        Reused by raise/edit/withdraw/get_detail. Efficient by construction: one
-        category read, one history read, one image read; each image's preview URL
-        is fetched from Vault (falling back to ``None`` if Vault is unavailable —
-        e.g. the module is disabled — so detail stays robust). No N+1 across
-        complaints since callers hold a single row.
-        """
-        society_id = complaint.society_id
-
-        category = self._repo.get_category(society_id, complaint.category_id)
-        category_name = category.name if category is not None else ""
-        house_display_code = self._house_service().house_display_code(
-            society_id, complaint.house_id
-        )
-
-        timeline = [
-            StatusHistoryOut.model_validate(h)
-            for h in self._repo.list_status_history(complaint.id)
-        ]
-
-        images: list[ComplaintImageOut] = []
-        for img in self._repo.list_images(complaint.id):
-            out = ComplaintImageOut.model_validate(img)
-            out.preview_url = self._preview_url(society_id, img.vault_document_id)
-            images.append(out)
-
-        return ComplaintDetailOut(
-            id=complaint.id,
-            reference=complaint.reference,
-            house_id=complaint.house_id,
-            house_display_code=house_display_code,
-            raised_by=complaint.raised_by,
-            category_id=complaint.category_id,
-            category_name=category_name,
-            title=complaint.title,
-            description=complaint.description,
-            status=complaint.status,
-            resolved_at=complaint.resolved_at,
-            closed_at=complaint.closed_at,
-            archived_at=complaint.archived_at,
-            withdrawn_at=complaint.withdrawn_at,
-            created_at=complaint.created_at,
-            updated_at=complaint.updated_at,
-            timeline=timeline,
-            images=images,
-        )
-
-    def _preview_url(self, society_id: int, document_id: int) -> str | None:
-        """A signed inline preview URL for a stored image, or ``None`` if Vault
-        can't produce one (module disabled / document gone) — detail must never
-        fail because a preview can't be signed."""
-        from app.modules.vault import api as vault_api
-
-        try:
-            return vault_api.get_preview_url(
-                self._session, society_id, document_id
-            ).url
-        except Exception:
-            return None

@@ -14,7 +14,7 @@ concern; the FOR-UPDATE reference allocator and the batched image-count fetch
 """
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -142,14 +142,19 @@ class ComplaintRepository:
     # --- complaints --------------------------------------------------------
 
     def get_complaint(
-        self, society_id: int, complaint_id: int
+        self, society_id: int, complaint_id: int, *, lock: bool = False
     ) -> Complaint | None:
-        return self._session.execute(
-            select(Complaint).where(
-                Complaint.id == complaint_id,
-                Complaint.society_id == society_id,
-            )
-        ).scalar_one_or_none()
+        """Fetch one society-scoped complaint. ``lock=True`` takes a
+        ``SELECT ... FOR UPDATE`` so a read-check-insert on the complaint's images
+        (the per-kind cap) is serialized against concurrent adders — without it two
+        parallel uploads can both pass the cap check and over-commit (docs §4)."""
+        stmt = select(Complaint).where(
+            Complaint.id == complaint_id,
+            Complaint.society_id == society_id,
+        )
+        if lock:
+            stmt = stmt.with_for_update()
+        return self._session.execute(stmt).scalar_one_or_none()
 
     def add_complaint(self, complaint: Complaint) -> Complaint:
         self._session.add(complaint)
@@ -193,12 +198,21 @@ class ComplaintRepository:
         if date_from is not None:
             conditions.append(Complaint.created_at >= date_from)
         if date_to is not None:
-            conditions.append(Complaint.created_at < date_to)
+            # Inclusive of the whole ``date_to`` day: created_at is a timestamptz,
+            # so compare against the START of the NEXT day (< date_to+1), else a
+            # complaint raised at any time on date_to (e.g. today) is dropped.
+            conditions.append(Complaint.created_at < date_to + timedelta(days=1))
         if q:
-            like = f"%{q.strip()}%"
+            # Parameterized (no SQL injection), but escape LIKE metacharacters so a
+            # literal ``%``/``_`` in the query is matched literally, not as a
+            # wildcard (a bare ``%`` would otherwise match everything).
+            term = q.strip().replace("\\", "\\\\").replace("%", "\\%").replace(
+                "_", "\\_"
+            )
+            like = f"%{term}%"
             conditions.append(
-                func.lower(Complaint.reference).like(func.lower(like))
-                | func.lower(Complaint.title).like(func.lower(like))
+                func.lower(Complaint.reference).like(func.lower(like), escape="\\")
+                | func.lower(Complaint.title).like(func.lower(like), escape="\\")
             )
 
         total = self._session.execute(

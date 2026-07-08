@@ -39,6 +39,9 @@ from app.modules.complaints.schemas import (
     ALLOWED_TRANSITIONS,
     COMPLAINT_STATUSES,
     DEFAULT_CATEGORIES,
+    ComplaintDetailOut,
+    ComplaintImageOut,
+    StatusHistoryOut,
     STATUS_ARCHIVED,
     STATUS_CLOSED,
     STATUS_IN_PROGRESS,
@@ -238,4 +241,85 @@ def record_initial(
             note=None,
             changed_by=changed_by,
         )
+    )
+
+
+# --- detail assembly (the single shared view builder) ------------------------
+
+
+def preview_url_or_none(
+    session: Session, society_id: int, document_id: int
+) -> str | None:
+    """A signed inline preview URL for a stored image, or ``None`` if Vault can't
+    produce one — a trashed/purged document, or the Vault module disabled.
+
+    Detail assembly must NEVER fail because one image can't be previewed: an admin
+    driving a status change would otherwise get a 404 for an already-applied
+    transition when a proof image's Vault document was later trashed. Kept as one
+    helper so both the CRUD and status views degrade identically (was divergent —
+    a code-review finding).
+    """
+    from app.modules.vault import api as vault_api
+
+    try:
+        return vault_api.get_preview_url(session, society_id, document_id).url
+    except Exception:
+        return None
+
+
+def assemble_detail(
+    session: Session, repo: ComplaintRepository, complaint: Complaint
+) -> ComplaintDetailOut:
+    """Build the full :class:`ComplaintDetailOut` for one complaint (docs §6).
+
+    THE single detail view builder — used by raise/edit/withdraw/get_detail
+    (CRUD) and by the status/resolve responses, so the shape and the
+    trashed-image-safe preview handling never diverge between concerns. Efficient
+    by construction: one category read, one history read, one image read; previews
+    are fetched per image but guarded (see :func:`preview_url_or_none`). One
+    complaint at a time (no cross-complaint N+1).
+    """
+    society_id = complaint.society_id
+
+    category = repo.get_category(society_id, complaint.category_id)
+    category_name = category.name if category is not None else ""
+
+    from app.modules.houses.service import HouseService
+
+    house_display_code = HouseService(session).house_display_code(
+        society_id, complaint.house_id
+    )
+
+    timeline = [
+        StatusHistoryOut.model_validate(h)
+        for h in repo.list_status_history(complaint.id)
+    ]
+
+    images: list[ComplaintImageOut] = []
+    for img in repo.list_images(complaint.id):
+        out = ComplaintImageOut.model_validate(img)
+        out.preview_url = preview_url_or_none(
+            session, society_id, img.vault_document_id
+        )
+        images.append(out)
+
+    return ComplaintDetailOut(
+        id=complaint.id,
+        reference=complaint.reference,
+        house_id=complaint.house_id,
+        house_display_code=house_display_code,
+        raised_by=complaint.raised_by,
+        category_id=complaint.category_id,
+        category_name=category_name,
+        title=complaint.title,
+        description=complaint.description,
+        status=complaint.status,
+        resolved_at=complaint.resolved_at,
+        closed_at=complaint.closed_at,
+        archived_at=complaint.archived_at,
+        withdrawn_at=complaint.withdrawn_at,
+        created_at=complaint.created_at,
+        updated_at=complaint.updated_at,
+        timeline=timeline,
+        images=images,
     )

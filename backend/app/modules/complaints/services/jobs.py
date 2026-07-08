@@ -21,7 +21,7 @@ entrypoint import + green gate work; Wave F implements the real scan +
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -51,9 +51,9 @@ def _enabled_complaints_society_ids(session: Session) -> list[int]:
 
 
 def _run_for_societies(
-    session: Session, society_ids: list[int], as_of: date
+    session: Session, society_ids: list[int], now: datetime
 ) -> dict[str, int]:
-    """Per-society auto-archive for the given run date (§9).
+    """Per-society auto-archive as of the aware-UTC instant ``now`` (§9).
 
     Failure isolation + commit choice: **commit after each successful society,
     rollback on failure** — mirroring how ``finance/services/jobs.py`` isolates
@@ -62,19 +62,18 @@ def _run_for_societies(
     means a mid-scan failure never taints an already-processed society, and a
     ``rollback()`` on error hands the next society a clean session.
 
-    For each society: load its ``auto_archive_days`` (N), compute the aware-UTC
-    cutoff ``older_than = <as_of at UTC midnight> - N days`` (``as_of`` is a date
-    so tests/backfills drive the calendar deterministically), fetch the
-    ``status='closed'`` complaints whose ``closed_at <= older_than`` (partial
-    index), and move each to ``archived`` via :func:`support.record_transition`
-    (stamps ``archived_at`` + writes the ``(closed -> archived, changed_by=NULL)``
-    timeline row). Each archive audits ``complaint.archived`` (actor = system
-    worker). Idempotent — only ``status='closed'`` rows are ever selected, so a
-    duplicate run archives nothing new. Returns a run summary.
+    ``now`` is a full aware-UTC timestamp (the scheduled driver passes the real
+    ``utcnow()``; tests pass a fixed instant). For each society: load its
+    ``auto_archive_days`` (N), compute the cutoff ``older_than = now - N days``
+    (a true timestamp, NOT midnight-truncated, so "N days after ``closed_at``"
+    is precise rather than "N-to-N+1 days"), fetch the ``status='closed'``
+    complaints whose ``closed_at <= older_than`` (partial index), and move each to
+    ``archived`` via :func:`support.record_transition` (stamps ``archived_at`` +
+    writes the ``(closed -> archived, changed_by=NULL)`` timeline row). Each
+    archive audits ``complaint.archived`` (actor = system worker). Idempotent —
+    only ``status='closed'`` rows are ever selected, so a duplicate run archives
+    nothing new. Returns a run summary.
     """
-    # A single aware-UTC "now" for the whole scan, derived from the run date so
-    # the run is deterministic. Timestamp comparisons (closed_at) want a datetime.
-    now = datetime.combine(as_of, time.min, tzinfo=timezone.utc)
     processed = 0
     total_archived = 0
     for society_id in society_ids:
@@ -107,19 +106,19 @@ def _run_for_societies(
             processed += 1
             total_archived += archived
             logger.info(
-                "complaints auto-archive: society=%s archived=%d (as_of=%s)",
+                "complaints auto-archive: society=%s archived=%d (now=%s)",
                 society_id,
                 archived,
-                as_of.isoformat(),
+                now.isoformat(),
             )
         except Exception:
             # One society's failure must not abort the others. Roll back so the
             # poisoned unit of work can't taint the next society's session.
             session.rollback()
             logger.exception(
-                "complaints auto-archive: society=%s FAILED (as_of=%s), skipping",
+                "complaints auto-archive: society=%s FAILED (now=%s), skipping",
                 society_id,
-                as_of.isoformat(),
+                now.isoformat(),
             )
             continue
     return {
@@ -132,16 +131,16 @@ def run_daily_auto_archive() -> dict[str, int]:
     """Daily scan: archive closed complaints past their auto-archive window (§9).
 
     Owns its own session (mirror ``finance/services/jobs.py``): opens a
-    ``SessionLocal``, gathers the enabled societies + today's UTC date, delegates
-    the per-society loop to :func:`_run_for_societies` (which commits per society
-    and isolates failures), then closes in a ``finally``. Idempotent and callable
-    on demand. Returns a run summary.
+    ``SessionLocal``, gathers the enabled societies + the current UTC instant,
+    delegates the per-society loop to :func:`_run_for_societies` (which commits per
+    society and isolates failures), then closes in a ``finally``. Idempotent and
+    callable on demand. Returns a run summary.
     """
     session = SessionLocal()
     try:
-        today = utcnow().date()
+        now = utcnow()
         society_ids = _enabled_complaints_society_ids(session)
-        result = _run_for_societies(session, society_ids, today)
+        result = _run_for_societies(session, society_ids, now)
         logger.info(
             "complaints auto-archive scan: %d societies processed, "
             "%d complaints archived",

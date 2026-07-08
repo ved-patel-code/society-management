@@ -59,9 +59,11 @@ class ImagesService:
     # --- helpers -----------------------------------------------------------
 
     def _require_complaint(
-        self, society_id: int, complaint_id: int
+        self, society_id: int, complaint_id: int, *, lock: bool = False
     ) -> Complaint:
-        complaint = self._repo.get_complaint(society_id, complaint_id)
+        complaint = self._repo.get_complaint(
+            society_id, complaint_id, lock=lock
+        )
         if complaint is None:
             raise NotFoundError(
                 "Complaint not found.", details={"complaint_id": complaint_id}
@@ -110,7 +112,11 @@ class ImagesService:
         Vault's own 413 (quota) / 415 (denied type) propagate untouched (§4). The
         write is audited ``complaint.image_added``.
         """
-        complaint = self._require_complaint(society_id, complaint_id)
+        # Lock the complaint row so the cap check + insert is serialized against a
+        # concurrent add (double-tap / retry) — else two adders both pass
+        # ``current < max`` and over-commit past max_report_images (code-review
+        # finding).
+        complaint = self._require_complaint(society_id, complaint_id, lock=True)
         self._require_raiser(complaint, actor_user_id)
         self._require_open(complaint)
 

@@ -32,13 +32,10 @@ from app.modules.complaints.schemas import (
     KIND_PROOF,
     STATUS_RESOLVED,
     ComplaintDetailOut,
-    ComplaintImageOut,
     StatusChangeRequest,
-    StatusHistoryOut,
 )
 from app.modules.complaints.services import support
 from app.modules.complaints import events
-from app.modules.houses.service import HouseService
 from app.modules.vault import api as vault_api
 from app.platform.audit.service import AuditService
 
@@ -115,7 +112,7 @@ class StatusService:
                 "reference": complaint.reference,
             }
         )
-        return self._detail(complaint)
+        return support.assemble_detail(self._session, self._repo, complaint)
 
     async def resolve(
         self,
@@ -137,7 +134,12 @@ class StatusService:
         Async because the router hands over the raw ``UploadFile`` objects; the
         bytes are read here (``await file.read()``).
         """
-        complaint = self._repo.get_complaint(society_id, complaint_id)
+        # Lock the complaint row: the proof-image cap is a read-check-insert, so
+        # serialize concurrent resolves against each other (no over-committing past
+        # max_proof_images) — a code-review finding.
+        complaint = self._repo.get_complaint(
+            society_id, complaint_id, lock=True
+        )
         if complaint is None:
             raise NotFoundError(
                 "Complaint not found.", details={"complaint_id": complaint_id}
@@ -232,59 +234,5 @@ class StatusService:
                 "reference": complaint.reference,
             }
         )
-        return self._detail(complaint)
+        return support.assemble_detail(self._session, self._repo, complaint)
 
-    # --- detail assembly ---------------------------------------------------
-
-    def _detail(self, complaint: Complaint) -> ComplaintDetailOut:
-        """Assemble the full complaint detail (fields + timeline + images) (§6).
-
-        Wave-local (small, intended duplication with Wave B — see the shared wave
-        context). Batches the category + image reads (no N+1); populates each
-        image's Vault preview URL.
-        """
-        society_id = complaint.society_id
-
-        category = self._repo.categories_by_ids({complaint.category_id}).get(
-            complaint.category_id
-        )
-        category_name = category.name if category is not None else ""
-
-        house_display_code = HouseService(self._session).house_display_code(
-            society_id, complaint.house_id
-        )
-
-        timeline = [
-            StatusHistoryOut.model_validate(row)
-            for row in self._repo.list_status_history(complaint.id)
-        ]
-
-        images: list[ComplaintImageOut] = []
-        for image in self._repo.list_images(complaint.id):
-            preview = vault_api.get_preview_url(
-                self._session, society_id, image.vault_document_id
-            )
-            out = ComplaintImageOut.model_validate(image)
-            out.preview_url = preview.url
-            images.append(out)
-
-        return ComplaintDetailOut(
-            id=complaint.id,
-            reference=complaint.reference,
-            house_id=complaint.house_id,
-            house_display_code=house_display_code,
-            raised_by=complaint.raised_by,
-            category_id=complaint.category_id,
-            category_name=category_name,
-            title=complaint.title,
-            description=complaint.description,
-            status=complaint.status,
-            resolved_at=complaint.resolved_at,
-            closed_at=complaint.closed_at,
-            archived_at=complaint.archived_at,
-            withdrawn_at=complaint.withdrawn_at,
-            created_at=complaint.created_at,
-            updated_at=complaint.updated_at,
-            timeline=timeline,
-            images=images,
-        )

@@ -97,7 +97,7 @@ Written to `audit_log` (in-transaction, append-only):
 - `complaint.status_changed` — complaint_id, from_status → to_status, note (covers in_progress / resolved / closed / reopen).
 - `complaint.image_added` / `complaint.image_removed` — complaint_id, kind (report|proof), vault_document_id.
 - `complaint.archived` — complaint_id (actor = system worker).
-- `complaint_category.created` / `renamed` / `deactivated` — category_id (+ before/after name).
+- `complaint_category.created` / `renamed` / `reactivated` / `deactivated` — category_id (+ before/after name). (`reactivated` is written when a deactivated category is turned active again via `PATCH … {is_active: true}` — a distinct state change from a rename.)
 - `complaints.config_updated` — before/after of `auto_archive_days` (etc.).
 
 ## 6. Endpoints (`/complaints/*`, society from JWT)
