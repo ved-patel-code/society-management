@@ -10,8 +10,10 @@ Run a society's money: set the maintenance **rate** (effective-dated), generate 
 **Out of scope (future):** late-fee penalties, discounts/waivers, online payment gateway (interface-ready), per-house-type rates, receipts/invoices PDF.
 
 ## 2. Audience & permissions
-- **society_admin**. Owners may **read their own house's dues** (via occupancy link) — read-only; collection is admin-recorded in v1.
-- Permissions (`finance.*`): `finance.read`, `finance.manage_rate`, `finance.record_payment`, `finance.manage_expenses`, `finance.manage_reserve`.
+- **society_admin** (+ super_admin, + any future finance-staff role e.g. a "finance admin"). Owners may **read their own house's dues** (via occupancy link) — read-only; collection is admin-recorded in v1.
+- Permissions (`finance.*`): `finance.read` (finance views + one's **own** house dues), `finance.read_all` (view **any** house's dues/collection — society-wide), `finance.manage_rate`, `finance.record_payment`, `finance.manage_expenses`, `finance.manage_reserve`.
+- **Dues-read scope is data-driven** (docs/02 §4 — roles add with no code change): the "view any house's dues" capability is the `finance.read_all` permission, not a hardcoded role. `is_super_admin` bypasses (platform operator). A `finance.read`-only holder (resident) is restricted to a house they currently occupy. A new role (e.g. finance admin) gains society-wide dues by including `finance.read_all` in its grants.
+- On enable: society_admin is granted all 6 `finance.*`; resident is granted `finance.read`.
 - Gated `require_module('finance')` (`depends_on: houses`) + `require_permission(...)`.
 
 ## 3. Data model
@@ -71,7 +73,7 @@ Written to `audit_log` (in-transaction):
 ## 7. Inter-module contracts
 - **Consumes:** House & Occupancy (`status` + `first_left_empty_on` → who owes, from when); Onboarding **house registry** (resolve by number for "enter house number"); foundation `TenantContext`/`AuditService`; worker.
 - **Provides:** `outstanding_dues(house_id)`, `record_payment(...)`, `generate_due_cycle(society)`; **due/overdue signals** for the modular reminder system (Notifications); a **has-dues** check for Onboarding's delete-guard.
-  - **Dues reminders (built):** the recurring reminder is a **rule hosted by the Notifications module**, which consumes `outstanding_dues(house_id)` + the society's `maintenance_due_day` and builds one consolidated `maintenance_due` alert per fire. The **reminder cadence (advance days, interval N) lives in Notifications config, not Finance** — Finance only exposes the dues data. See [notifications.md](notifications.md).
+  - **Dues reminders (Finance seam built; reminder pending Notifications):** Finance exposes `outstanding_dues(house_id)` + `maintenance_due_day` today. The recurring reminder itself is a **rule hosted by the Notifications module** (not yet built), which will consume those and build one consolidated `maintenance_due` alert per fire. The **reminder cadence (advance days, interval N) lives in Notifications config, not Finance** — Finance only exposes the dues data. See [notifications.md](notifications.md).
 - **PaymentProvider interface:** `admin_manual` now; a gateway is a later implementation — no finance-core change.
 
 ## 8. Feature flag / config

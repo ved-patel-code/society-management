@@ -176,6 +176,44 @@ class HouseRepository:
 
     # --- cross-module contract (docs §7) -----------------------------------
 
+    def houses_owing(
+        self, society_id: int
+    ) -> list[tuple[int, date | None]]:
+        """Dues-owing houses: ``(house_id, first_left_empty_on)`` for status !=
+        empty (Finance contract — docs/modules/finance.md §4/§7).
+
+        Empty houses never owe. Uses ``ix_houses_society_status``. Returns only the
+        two columns Finance needs (no full-row load, no N+1).
+        """
+        rows = self._session.execute(
+            select(House.id, House.first_left_empty_on).where(
+                House.society_id == society_id,
+                House.status != "empty",
+            )
+        ).all()
+        return [(int(r[0]), r[1]) for r in rows]
+
+    def house_by_number(
+        self, society_id: int, number: str, *, building_id: int | None = None
+    ) -> House | None:
+        """Resolve a house by its bare number (the "enter house number" flow —
+        Finance collection, docs/modules/finance.md §4/§6).
+
+        For building-type societies a bare number is unique only within a
+        building, so ``building_id`` disambiguates; individual-type numbers are
+        unique per society. Returns None if not found or ambiguous.
+        """
+        conditions = [House.society_id == society_id, House.number == number]
+        if building_id is not None:
+            conditions.append(House.building_id == building_id)
+        rows = (
+            self._session.execute(select(House).where(*conditions).limit(2))
+            .scalars()
+            .all()
+        )
+        # Ambiguous (multiple buildings share the number, no building_id) → None.
+        return rows[0] if len(rows) == 1 else None
+
     def current_owner_user_ids(self, society_id: int) -> set[int]:
         """The society's current owner login ids (Notice Board audience, etc.).
 

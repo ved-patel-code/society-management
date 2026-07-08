@@ -22,8 +22,8 @@ When a consumer is built before its dependency, it stores the linking field (nul
 | Notice Board (attachments) | Vault | `notice_attachments.vault_document_id` FK; society-level `Notices/<notice>` system folder via `ensure_notice_folder` | ✅ wired (Vault built) |
 | Notice Board (new notice → residents) | Notifications | emits `notice_posted`; calls `mark_read_for` on notice-open | ✅ wired (Notifications built) |
 | Notice Board (read receipts + audience) | House & Occupancy | consumes `current_owner_user_ids(society_id)` | ✅ wired (Occupancy built) |
-| Finance (due reminders) | Notifications + worker | dues service callable standalone; reminder rule hosted by Notifications | ✅ wired (Notifications built) |
-| Notifications (maintenance due) | Finance | consumes `outstanding_dues` + `maintenance_due_day`; `dedupe_key = dues:{house}:{day}` | ✅ wired (Finance built) |
+| Finance (due reminders) | Notifications + worker | dues service callable standalone; Finance exposes `outstanding_dues` + `maintenance_due_day` (built); reminder rule hosted by Notifications | ⏳ pending — Finance seam built; wired when Notifications is built |
+| Notifications (maintenance due) | Finance | consumes `outstanding_dues` + `maintenance_due_day` (both provided by built Finance); `dedupe_key = dues:{house}:{day}` | ⏳ pending — consumes when Notifications is built |
 | Finance (online payment) | Payment gateway | `PaymentProvider` interface, `payments.method=gateway` | Gateway added (future) |
 | ID proofs + Complaint images | Vault house folders | house-centric layout `Houses/<house>/Proof` + `Houses/<house>/Complaints`, auto-created on first use | Vault built |
 | Elections (admin handover) | Roles + Notifications + Audit | reassigns `society_admin` via `user_roles`; reads `audit_log` for tenure history | Elections module built (future) |

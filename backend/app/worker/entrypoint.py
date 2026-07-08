@@ -10,6 +10,7 @@ import logging
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 
+from app.modules.finance.services.jobs import run_daily_dues_generation
 from app.modules.vault.services.jobs import purge_trash, reconcile_usage
 from app.worker.jobs.cleanup import purge_expired_auth_rows
 
@@ -44,6 +45,17 @@ def build_scheduler() -> BlockingScheduler:
         hour=4,
         minute=0,
         id="vault_reconcile_usage",
+        replace_existing=True,
+    )
+    # Finance daily dues-generation scan at 02:00 UTC (docs finance.md §9). Per
+    # society, generates the period's dues when today == its maintenance_due_day
+    # (idempotent, backfills). Callable on demand too via the API.
+    scheduler.add_job(
+        run_daily_dues_generation,
+        trigger="cron",
+        hour=2,
+        minute=0,
+        id="finance_daily_dues_generation",
         replace_existing=True,
     )
     return scheduler
