@@ -108,6 +108,11 @@ class HouseService:
         """Cross-module contract: current owner login ids (docs §7)."""
         return self._repo.current_owner_user_ids(society_id)
 
+    def house_exists(self, society_id: int, house_id: int) -> bool:
+        """Cross-module contract: does this house belong to the society? Used by
+        Finance to validate a reserve entry's house link (tenant isolation)."""
+        return self._repo.get_house(society_id, house_id) is not None
+
     def houses_owing(self, society_id: int):
         """Cross-module contract (Finance): dues-owing houses as
         ``(house_id, first_left_empty_on)`` for status != empty. Empty houses

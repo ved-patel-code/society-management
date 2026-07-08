@@ -244,13 +244,17 @@ def test_list_expenses_paginated_newest_first(
     # Three expenses on ascending incurred_on dates.
     assert _record_expense(auth, hdr, cat_id, "10.00", "2026-01-10").status_code == 200
     assert _record_expense(auth, hdr, cat_id, "20.00", "2026-03-10").status_code == 200
-    assert _record_expense(auth, hdr, cat_id, "30.00", "2026-05-10").status_code == 200
+    third = _record_expense(auth, hdr, cat_id, "30.00", "2026-05-10")
+    assert third.status_code == 200
+    third_id = third.json()["id"]
 
     resp = auth.client.get(
         "/finance/expenses", headers=hdr, params={"page": 1, "page_size": 2}
     )
     assert resp.status_code == 200, resp.text
-    items = resp.json()
+    body = resp.json()
+    items = body["items"]
+    assert body["total"] == 3
     assert len(items) == 2
     # Newest incurred_on first.
     assert items[0]["incurred_on"] == "2026-05-10"
@@ -260,8 +264,25 @@ def test_list_expenses_paginated_newest_first(
         "/finance/expenses", headers=hdr, params={"page": 2, "page_size": 2}
     )
     assert page2.status_code == 200, page2.text
-    assert len(page2.json()) == 1
-    assert page2.json()[0]["incurred_on"] == "2026-01-10"
+    page2_body = page2.json()
+    assert len(page2_body["items"]) == 1
+    assert page2_body["items"][0]["incurred_on"] == "2026-01-10"
+    assert page2_body["total"] == 3
+
+    # include_voided=false excludes a voided expense from the listing.
+    void = auth.client.post(
+        f"/finance/expenses/{third_id}/void", headers=hdr, json={"reason": "test"}
+    )
+    assert void.status_code == 200, void.text
+    filtered = auth.client.get(
+        "/finance/expenses",
+        headers=hdr,
+        params={"page": 1, "page_size": 10, "include_voided": False},
+    )
+    assert filtered.status_code == 200, filtered.text
+    filtered_body = filtered.json()
+    assert filtered_body["total"] == 2
+    assert all(i["id"] != third_id for i in filtered_body["items"])
 
 
 # ===========================================================================

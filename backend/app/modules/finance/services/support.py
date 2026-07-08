@@ -9,7 +9,7 @@ its service interface (never its tables — docs/05).
 from __future__ import annotations
 
 from datetime import date
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -18,8 +18,8 @@ from app.modules.finance.models import ExpenseCategory, LedgerEntry
 from app.modules.finance.repository import FinanceRepository
 from app.modules.finance.schemas import (
     DEFAULT_EXPENSE_CATEGORIES,
-    MONEY_QUANT,
     FinanceConfig,
+    quantize_money,
 )
 from app.platform.models import Society, SocietyModule
 
@@ -27,8 +27,10 @@ MODULE_KEY = "finance"
 
 
 def money(value: Decimal | int | str) -> Decimal:
-    """Coerce to a 2 dp Decimal (ROUND_HALF_UP). The one rounding rule money uses."""
-    return Decimal(value).quantize(MONEY_QUANT, rounding=ROUND_HALF_UP)
+    """The service-layer money helper — delegates to the canonical
+    :func:`app.modules.finance.schemas.quantize_money` (2 dp, ROUND_HALF_UP) so the
+    rounding rule is defined exactly once."""
+    return quantize_money(value)
 
 
 def load_config(session: Session, society_id: int) -> FinanceConfig:

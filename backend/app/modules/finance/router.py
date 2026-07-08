@@ -29,7 +29,9 @@ from app.modules.finance.schemas import (
     ExpenseCategoryCreateRequest,
     ExpenseCategoryOut,
     ExpenseCreateRequest,
+    ExpenseListOut,
     ExpenseOut,
+    ExpenseVoidRequest,
     ExpensesAnalyticsOut,
     HouseDuesOut,
     IncomeAnalyticsOut,
@@ -205,17 +207,22 @@ def add_category(
     )
 
 
-@router.get("/expenses", response_model=list[ExpenseOut], dependencies=_READ)
+@router.get("/expenses", response_model=ExpenseListOut, dependencies=_READ)
 def list_expenses(
     page: PageParams = Depends(),
+    include_voided: bool = Query(default=True),
     tenant: TenantContext = Depends(get_tenant_context),
     session: Session = Depends(get_session),
-) -> list[ExpenseOut]:
-    """Paginated expense list, newest-first (docs §6)."""
-    items, _ = FinanceService(session).expenses.list_expenses(
-        _society_id(tenant), offset=page.offset, limit=page.limit
+) -> ExpenseListOut:
+    """Paginated expense list + total, newest-first (docs §6). ``include_voided``
+    defaults True — voided expenses stay visible in reports (spec §4)."""
+    items, total = FinanceService(session).expenses.list_expenses(
+        _society_id(tenant),
+        offset=page.offset,
+        limit=page.limit,
+        include_voided=include_voided,
     )
-    return items
+    return ExpenseListOut(items=items, total=total)
 
 
 @router.post("/expenses", response_model=ExpenseOut, dependencies=_EXPENSE)
@@ -236,7 +243,7 @@ def record_expense(
 )
 def void_expense(
     expense_id: int,
-    body: PaymentVoidRequest,
+    body: ExpenseVoidRequest,
     auth: AuthContext = Depends(require_permission("finance.manage_expenses")),
     tenant: TenantContext = Depends(get_tenant_context),
     session: Session = Depends(get_session),

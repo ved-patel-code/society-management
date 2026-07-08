@@ -20,6 +20,7 @@ from decimal import Decimal
 
 from sqlalchemy import select
 
+from app.common.time import utcnow
 from app.modules.finance.models import (
     HouseDue,
     LedgerEntry,
@@ -28,6 +29,7 @@ from app.modules.finance.models import (
     PaymentAllocation,
     PrepaidBlock,
 )
+from app.modules.finance.periods import add_months, period_of
 from app.modules.finance.repository import FinanceRepository
 from app.platform.models import AuditLog
 from app.platform.societies.schemas import ModuleAllocation, SocietyCreate
@@ -130,6 +132,22 @@ def _void(auth, hdr, pid, reason="mistake"):
     return auth.client.post(
         f"/finance/payments/{pid}/void", headers=hdr, json={"reason": reason}
     )
+
+
+def _clear_current_arrears(auth, hdr, hid) -> None:
+    """Settle whatever current/past dues ``record_prepaid`` will materialize.
+
+    ``record_prepaid`` now runs ``generate_due_cycle`` FIRST, so a non-empty
+    house (``_owned_house``) always has the current month's due materialized
+    before the arrears check. Trigger that same generation up front (via the
+    on-demand ``/finance/dues/generate`` endpoint) and pay it off, so the
+    prepaid call proceeds to the "clear" branch and its window lands in the
+    FUTURE.
+    """
+    gen = auth.client.post("/finance/dues/generate", headers=hdr)
+    assert gen.status_code == 200, gen.text
+    resp = _pay(auth, hdr, hid, method="cash", pay_all=True)
+    assert resp.status_code == 200, resp.text
 
 
 # ===========================================================================
@@ -269,7 +287,11 @@ def test_prepaid_3_months_locked_rate(db, society, admin_user, superadmin, auth)
     hdr = _setup(db, society, admin_user, superadmin, auth)
     hid = _owned_house(auth, hdr)
     _set_rate(db, society.id)
+    # record_prepaid materializes + requires the current month's due be cleared
+    # first (arrears-first, docs §4); settle it before attempting the block.
+    _clear_current_arrears(auth, hdr, hid)
 
+    current = period_of(utcnow().date())
     before = _reserve(db, society.id)
     resp = _prepaid(auth, hdr, hid, months_count=3, method="online")
     assert resp.status_code == 200, resp.text
@@ -285,27 +307,50 @@ def test_prepaid_3_months_locked_rate(db, society, admin_user, superadmin, auth)
     assert block.rate_locked == Decimal("1000.00")
 
     dues = db.execute(
-        select(HouseDue).where(HouseDue.house_id == hid)
+        select(HouseDue).where(HouseDue.house_id == hid, HouseDue.source == "prepaid")
     ).scalars().all()
     assert len(dues) == 3
+    expected_months = [add_months(*current, i) for i in (1, 2, 3)]
+    got_months = sorted((d.period_year, d.period_month) for d in dues)
+    assert got_months == sorted(expected_months)
     for d in dues:
         assert d.status == "paid"
         assert d.source == "prepaid"
         assert d.locked_rate == Decimal("1000.00")
+        # The block covers FUTURE months only, never the (already-cleared) current one.
+        assert (d.period_year, d.period_month) > current
     assert _reserve(db, society.id) == before + Decimal("3000.00")
 
 
 def test_prepaid_6_9_12_blocks(db, society, admin_user, superadmin, auth):
     hdr = _setup(db, society, admin_user, superadmin, auth)
     _set_rate(db, society.id)  # rate is society-wide
+    current = period_of(utcnow().date())
     for n, expected in ((6, "6000.00"), (9, "9000.00"), (12, "12000.00")):
         houses = _make_building_with_houses(auth, hdr, names=[f"B{n}"])
         hid = houses[0]["id"]
         _set_status(auth, hdr, hid, "owned", _owner(email=f"o{n}@x.com", persons_living=1))
+        # Each new owned house owes the current month once record_prepaid
+        # materializes it — clear it first so the block window is future-only.
+        _clear_current_arrears(auth, hdr, hid)
         resp = _prepaid(auth, hdr, hid, months_count=n, method="cash")
         assert resp.status_code == 200, resp.text
         assert resp.json()["amount"] == expected
         assert len(resp.json()["allocations"]) == n
+
+        db.expire_all()
+        dues = db.execute(
+            select(HouseDue).where(
+                HouseDue.house_id == hid, HouseDue.source == "prepaid"
+            )
+        ).scalars().all()
+        assert len(dues) == n
+        expected_months = [add_months(*current, i) for i in range(1, n + 1)]
+        got_months = sorted((d.period_year, d.period_month) for d in dues)
+        assert got_months == sorted(expected_months)
+        for d in dues:
+            assert d.status == "paid"
+            assert (d.period_year, d.period_month) > current
 
 
 def test_prepaid_arrears_present_409(db, society, admin_user, superadmin, auth):
@@ -338,6 +383,9 @@ def test_prepaid_locks_rate_against_later_rise(
     hdr = _setup(db, society, admin_user, superadmin, auth)
     hid = _owned_house(auth, hdr)
     _set_rate(db, society.id, amount=Decimal("1000.00"))
+    # Clear the current month's due (materialized by record_prepaid's
+    # generate_due_cycle call) so arrears don't block the block purchase.
+    _clear_current_arrears(auth, hdr, hid)
 
     resp = _prepaid(auth, hdr, hid, months_count=3, method="cash")
     assert resp.status_code == 200, resp.text
@@ -353,8 +401,9 @@ def test_prepaid_locks_rate_against_later_rise(
     db.commit()
     db.expire_all()
     dues = db.execute(
-        select(HouseDue).where(HouseDue.house_id == hid)
+        select(HouseDue).where(HouseDue.house_id == hid, HouseDue.source == "prepaid")
     ).scalars().all()
+    assert len(dues) == 3
     for d in dues:
         assert d.amount_due == Decimal("1000.00")
         assert d.locked_rate == Decimal("1000.00")
@@ -368,9 +417,25 @@ def test_prepaid_config_custom_blocks(db, society, admin_user, superadmin, auth)
     )
     hid = _owned_house(auth, hdr)
     _set_rate(db, society.id)
-    # 3 is a global default but not in THIS society's config → 422.
+    # 3 is a global default but not in THIS society's config → 422 (validated
+    # before the arrears/materialize step, so no need to clear dues for this one).
     assert _prepaid(auth, hdr, hid, months_count=3, method="cash").status_code == 422
-    assert _prepaid(auth, hdr, hid, months_count=6, method="cash").status_code == 200
+
+    # The current month's due is materialized by generate_due_cycle regardless
+    # of the rejected attempt above (months_count validation is a separate,
+    # earlier check) — clear it before the valid 6-month block can succeed.
+    _clear_current_arrears(auth, hdr, hid)
+    resp = _prepaid(auth, hdr, hid, months_count=6, method="cash")
+    assert resp.status_code == 200, resp.text
+
+    db.expire_all()
+    dues = db.execute(
+        select(HouseDue).where(HouseDue.house_id == hid, HouseDue.source == "prepaid")
+    ).scalars().all()
+    assert len(dues) == 6
+    current = period_of(utcnow().date())
+    for d in dues:
+        assert (d.period_year, d.period_month) > current
 
 
 # ===========================================================================

@@ -177,16 +177,32 @@ def test_post_resale_transfer_with_house_link(
     db, society, admin_user, superadmin, auth
 ):
     hdr = _setup(db, society, admin_user, superadmin, auth)
+
+    from tests._houses_helpers import _make_building_with_houses, _owner, _set_status
+
+    houses = _make_building_with_houses(auth, hdr)
+    house_id = houses[0]["id"]
+    assert _set_status(
+        auth, hdr, house_id, "owned", _owner(persons_living=2)
+    ).status_code == 200
+
     resp = _post_entry(
         auth, hdr, entry_type="resale_transfer", amount="5000.00",
         occurred_on="2026-05-01", description="Resale lump sum",
-        source_type="house", source_id=42,
+        source_type="house", source_id=house_id,
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["direction"] == "inflow"
     assert body["source_type"] == "house"
-    assert body["source_id"] == 42
+    assert body["source_id"] == house_id
+
+    # A house id that doesn't exist in this society is rejected (tenant isolation).
+    bad = _post_entry(
+        auth, hdr, entry_type="resale_transfer", amount="1000.00",
+        occurred_on="2026-05-02", source_type="house", source_id=999999,
+    )
+    assert bad.status_code == 404, bad.text
 
 
 def test_post_entry_audits_posted(db, society, admin_user, superadmin, auth):
@@ -487,7 +503,9 @@ def test_reconcile_audits_reconciled(db, society, admin_user, superadmin, auth):
     assert len(audits) == 1
     assert audits[0].before == {"computed": "1000.00"}
     assert audits[0].after["actual"] == "1200.00"
-    assert audits[0].after["adjustment"] == "200.00"
+    assert audits[0].after["difference"] == "200.00"
+    assert audits[0].after["direction"] == "inflow"
+    assert audits[0].after["amount"] == "200.00"
 
 
 # ===========================================================================

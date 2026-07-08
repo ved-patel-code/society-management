@@ -91,6 +91,22 @@ class ReserveService:
             raise ValidationError(
                 f"source_type must be one of {sorted(LEDGER_SOURCE_TYPES)}."
             )
+        # A house link must resolve WITHIN this society — never let a caller store
+        # another tenant's house id as a label (tenant isolation, docs/PF §7).
+        if req.source_type == "house":
+            if req.source_id is None:
+                raise ValidationError(
+                    "source_id is required when source_type=house."
+                )
+            from app.modules.houses.service import HouseService
+
+            if not HouseService(self._session).house_exists(
+                society_id, req.source_id
+            ):
+                raise NotFoundError(
+                    "Linked house not found in this society.",
+                    details={"house_id": req.source_id},
+                )
 
         entry = post_ledger_entry(
             self._repo,
@@ -227,6 +243,13 @@ class ReserveService:
             entity_type="ledger_entry",
             entity_id=entry.id,
             before={"computed": str(computed)},
-            after={"actual": str(actual), "adjustment": str(diff)},
+            after={
+                "actual": str(actual),
+                # Signed difference plus how it was posted, so the audit fully
+                # describes the entry (which stores the unsigned amount + direction).
+                "difference": str(diff),
+                "direction": direction,
+                "amount": str(money(abs(diff))),
+            },
         )
         return LedgerEntryOut.model_validate(entry)

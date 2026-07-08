@@ -43,11 +43,23 @@ class ExpensesService:
         ]
 
     def list_expenses(
-        self, society_id: int, *, offset: int, limit: int
+        self,
+        society_id: int,
+        *,
+        offset: int,
+        limit: int,
+        include_voided: bool = True,
     ) -> tuple[list[ExpenseOut], int]:
-        """Paginated expense list, newest-first, incl. voided (docs §4/§6)."""
+        """Paginated expense list, newest-first (docs §4/§6).
+
+        ``include_voided`` (default True — voids stay VISIBLE in reports, spec §4)
+        can be set False to list only recorded expenses.
+        """
         rows, total = self._repo.list_expenses(
-            society_id, offset=offset, limit=limit
+            society_id,
+            offset=offset,
+            limit=limit,
+            include_voided=include_voided,
         )
         return [ExpenseOut.model_validate(e) for e in rows], total
 

@@ -57,13 +57,13 @@ class RatesService:
         owing = HouseService(self._session).houses_owing(society_id)
         count = len(owing)
         current = self._repo.current_rate(society_id)
-        current_amount = current.amount if current is not None else None
-        projected = proposed_amount * count
+        current_amount = money(current.amount) if current is not None else None
+        projected = money(proposed_amount * count)
         current_collection = (
-            current_amount * count if current_amount is not None else None
+            money(current_amount * count) if current_amount is not None else None
         )
         delta = (
-            projected - current_collection
+            money(projected - current_collection)
             if current_collection is not None
             else None
         )

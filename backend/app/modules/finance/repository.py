@@ -231,6 +231,25 @@ class FinanceRepository:
         self._session.flush()
         return block
 
+    def prepaid_block_for_payment(
+        self, society_id: int, payment_id: int
+    ) -> PrepaidBlock | None:
+        """The prepaid block a payment created, if any (void cleanup)."""
+        return self._session.execute(
+            select(PrepaidBlock).where(
+                PrepaidBlock.society_id == society_id,
+                PrepaidBlock.payment_id == payment_id,
+            )
+        ).scalar_one_or_none()
+
+    def delete_prepaid_block(self, block: PrepaidBlock) -> None:
+        """Remove a prepaid block whose payment was voided (its coverage no longer
+        exists). The money trail survives in the payment + reversal ledger entry;
+        this row is only a coverage record, so removing it is safe and keeps a
+        voided block from looking active."""
+        self._session.delete(block)
+        self._session.flush()
+
     # --- expense_categories ------------------------------------------------
 
     def list_categories(self, society_id: int) -> list[ExpenseCategory]:

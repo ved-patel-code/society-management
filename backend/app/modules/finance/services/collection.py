@@ -36,6 +36,7 @@ from app.modules.finance.schemas import (
     PaymentVoidRequest,
     PrepaidRecordRequest,
 )
+from app.modules.finance.services.dues import DuesService
 from app.modules.finance.services.support import (
     load_config,
     money,
@@ -212,6 +213,16 @@ class CollectionService:
                 details={"allowed": config.prepaid_blocks},
             )
 
+        # Materialize any not-yet-generated past/current dues FIRST, so the arrears
+        # check runs against the TRUE owed set (from first_left_empty_on), not just
+        # rows the worker happens to have created. Dues are generated lazily on the
+        # due day; without this, a mid-cycle prepaid could slip past real arrears
+        # and the block window could overlap a month about to be accrued (spec §4:
+        # "arrears cleared first"). Idempotent — creates nothing if already current.
+        DuesService(self._session, self._repo).generate_due_cycle(
+            society_id, actor_user_id=actor_user_id
+        )
+
         # Arrears must be cleared before a prepaid block (spec §4).
         if self._repo.has_outstanding(society_id, house_id):
             raise ConflictError("Clear arrears first.")
@@ -224,14 +235,19 @@ class CollectionService:
             )
         rate_locked = money(rate.amount)
 
-        # The window is the next N months not yet billed: start at the month
-        # after the latest existing due period (or the current month if none).
+        # The window is the next N months of FUTURE coverage (spec §4: "the next
+        # N months"). Anchor at the current period, but never before the month
+        # after the latest already-materialized due — so the block starts at
+        # max(current_period, latest+1). Anchoring only at latest+1 (as an earlier
+        # cut did) would land in the past when the last due is long paid, billing
+        # historical months and leaving the upcoming ones uncovered.
+        current = period_of(utcnow().date())
         existing = self._repo.existing_periods(society_id, house_id)
         if existing:
-            latest = max(existing)
-            first_y, first_m = add_months(latest[0], latest[1], 1)
+            nxt = add_months(*max(existing), 1)
+            first_y, first_m = max((nxt, current), key=lambda p: period_key(*p))
         else:
-            first_y, first_m = period_of(utcnow().date())
+            first_y, first_m = current
 
         months = [add_months(first_y, first_m, i) for i in range(n)]
         amount = money(rate_locked * n)
@@ -355,8 +371,11 @@ class CollectionService:
         payment.void_reason = req.reason
 
         # Re-open every allocated due (batch-load; no N+1). A prepaid-sourced due
-        # is re-opened too — voiding unwinds the whole block, so its months revert
-        # to outstanding, consistent with accrued dues (spec §4 transparency).
+        # is re-opened too — voiding unwinds the block, so its months revert to
+        # outstanding. Reset those to a normal accrued obligation (clear the
+        # prepaid source + locked rate) so we never leave an ``outstanding`` due
+        # still flagged ``source=prepaid`` — otherwise reports would treat a
+        # revoked block as active coverage.
         allocations = self._repo.allocations_for_payment(payment_id)
         due_ids = [a.house_due_id for a in allocations]
         dues = self._repo.dues_by_ids(society_id, due_ids)
@@ -367,7 +386,16 @@ class CollectionService:
                 continue
             due.status = "outstanding"
             due.paid_at = None
+            if due.source == "prepaid":
+                due.source = "accrued"
+                due.locked_rate = None
             reopened.append(due)
+
+        # Drop the prepaid block itself (its coverage no longer exists). The money
+        # trail is preserved by the payment + the reversal ledger entry below.
+        block = self._repo.prepaid_block_for_payment(society_id, payment_id)
+        if block is not None:
+            self._repo.delete_prepaid_block(block)
 
         # Post a reversing entry negating the original collection (both visible).
         original = self._repo.collection_entry_for_payment(society_id, payment_id)
@@ -379,7 +407,12 @@ class CollectionService:
                 entry_type="reversal",
                 direction=opposite,
                 amount=original.amount,
-                occurred_on=now.date(),
+                # Date the reversal to the ORIGINAL collection's period (not today)
+                # so per-period analytics net it against the entry it undoes —
+                # matching the expense-void path and ledger_monthly_totals' month
+                # bucketing. A cross-month void otherwise overstates the original
+                # month and dumps a negative into the void month.
+                occurred_on=original.occurred_on,
                 description=f"Reversal of voided payment {payment_id}",
                 source_type="payment",
                 source_id=payment_id,

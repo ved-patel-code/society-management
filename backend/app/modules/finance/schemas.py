@@ -11,31 +11,23 @@ Money is carried as ``Decimal`` (never float) and validated to 2 dp; periods are
 from __future__ import annotations
 
 from datetime import date, datetime
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # --- Domains (allowed string values; service-enforced) -----------------------
-
-DUE_STATUSES = frozenset({"outstanding", "paid"})
-DUE_SOURCES = frozenset({"accrued", "prepaid"})
+# Only the sets actually consumed by validators/services live here; the remaining
+# column domains (due status/source, payment status/provider, expense status) are
+# documented at their model columns in ``models.py`` and set via literals in the
+# service — keeping a second unused copy here would only risk drift.
 
 PAYMENT_METHODS = frozenset({"cash", "cheque", "bank_transfer", "online", "other"})
-PAYMENT_STATUSES = frozenset({"recorded", "voided"})
-PAYMENT_PROVIDERS = frozenset({"admin_manual", "gateway"})
-
-EXPENSE_STATUSES = frozenset({"recorded", "voided"})
 
 # Ledger entry_types an ADMIN may post directly (docs §6). collection/expense/
 # reversal are posted internally by their flows, never via the reserve endpoint.
 RESERVE_POSTABLE_ENTRY_TYPES = frozenset(
     {"opening", "deposit", "interest", "resale_transfer", "income", "adjustment"}
 )
-ALL_ENTRY_TYPES = RESERVE_POSTABLE_ENTRY_TYPES | {
-    "collection",
-    "expense",
-    "reversal",
-}
 LEDGER_DIRECTIONS = frozenset({"inflow", "outflow"})
 # entry_type → its natural direction (adjustment can be either — caller supplies).
 ENTRY_TYPE_DIRECTION = {
@@ -75,9 +67,14 @@ MONEY_QUANT = Decimal("0.01")
 MAX_MONEY = Decimal("9999999999.99")  # NUMERIC(12,2) ceiling.
 
 
-def quantize_money(value: Decimal) -> Decimal:
-    """Round a Decimal to 2 dp (bankers-safe ROUND_HALF_UP semantics elsewhere)."""
-    return value.quantize(MONEY_QUANT)
+def quantize_money(value: Decimal | int | str) -> Decimal:
+    """THE money rounding rule: coerce to a 2 dp Decimal (ROUND_HALF_UP).
+
+    Single source of truth — the service-layer ``money()`` helper delegates here so
+    rounding is defined once and can never drift between the schema and service
+    layers (docs/03 §1 — shared logic lives in one place).
+    """
+    return Decimal(value).quantize(MONEY_QUANT, rounding=ROUND_HALF_UP)
 
 
 class _Base(BaseModel):
@@ -267,6 +264,13 @@ class ExpenseOut(_Base):
     status: str
     voided_at: datetime | None
     void_reason: str | None
+
+
+class ExpenseListOut(BaseModel):
+    """Paginated expense list envelope (carries the total for client paging)."""
+
+    items: list[ExpenseOut]
+    total: int
 
 
 # ============================ Reserve ledger =================================
