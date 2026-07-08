@@ -20,6 +20,8 @@ from app.modules.houses.router import router as houses_router
 from app.modules.houses.spec import register_houses
 from app.modules.onboarding.router import router as onboarding_router
 from app.modules.onboarding.spec import register_onboarding
+from app.modules.finance.router import router as finance_router
+from app.modules.finance.spec import register_finance
 from app.modules.vault.router import router as vault_router
 from app.modules.vault.spec import register_vault
 from app.platform.auth.router import router as auth_router
@@ -56,6 +58,7 @@ def create_app() -> FastAPI:
     register_onboarding()
     register_houses()
     register_vault()
+    register_finance()
 
     app = FastAPI(
         title="Society Management API",
@@ -85,6 +88,7 @@ def create_app() -> FastAPI:
     app.include_router(onboarding_router)
     app.include_router(houses_router)
     app.include_router(vault_router)
+    app.include_router(finance_router)
 
     @app.get("/health", tags=["health"])
     async def health() -> dict[str, str]:

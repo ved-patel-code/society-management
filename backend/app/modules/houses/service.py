@@ -108,6 +108,21 @@ class HouseService:
         """Cross-module contract: current owner login ids (docs §7)."""
         return self._repo.current_owner_user_ids(society_id)
 
+    def houses_owing(self, society_id: int):
+        """Cross-module contract (Finance): dues-owing houses as
+        ``(house_id, first_left_empty_on)`` for status != empty. Empty houses
+        never owe (docs/modules/finance.md §4/§7)."""
+        return self._repo.houses_owing(society_id)
+
+    def house_by_number(
+        self, society_id: int, number: str, *, building_id: int | None = None
+    ) -> House | None:
+        """Cross-module contract (Finance): resolve a house by bare number for the
+        "enter house number → see dues" flow (docs/modules/finance.md §4/§6)."""
+        return self._repo.house_by_number(
+            society_id, number, building_id=building_id
+        )
+
     # --- writes (FROZEN — Wave C implements) -------------------------------
 
     def change_status(
