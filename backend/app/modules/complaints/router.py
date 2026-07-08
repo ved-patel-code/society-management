@@ -336,7 +336,7 @@ async def resolve_complaint(
     images (multipart) (docs §6). Proof images are filed into the Vault and locked
     after resolution.
     """
-    return ComplaintsService(session).status.resolve(
+    return await ComplaintsService(session).status.resolve(
         _society_id(tenant),
         complaint_id,
         note=note,
