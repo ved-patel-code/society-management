@@ -7,7 +7,7 @@ are frozen stubs — Wave C implements them.
 """
 from __future__ import annotations
 
-from datetime import datetime, time, timezone
+from datetime import date, datetime, time, timezone
 from decimal import Decimal
 
 from sqlalchemy.orm import Session
@@ -50,6 +50,33 @@ class CollectionService:
         self._session = session
         self._repo = repo
 
+    def _require_house(self, society_id: int, house_id: int) -> None:
+        """Reject a house id that isn't in the caller's society (tenant isolation).
+
+        Without this a foreign/nonexistent house id silently yields zero dues
+        (reads as "no dues" not "not found") or lets a write proceed against an
+        unverified house. Reached via the House service interface, never tables —
+        mirrors ``ReserveService.post_entry``'s house-link check.
+        """
+        from app.modules.houses.service import HouseService
+
+        if not HouseService(self._session).house_exists(society_id, house_id):
+            raise NotFoundError(
+                "House not found in this society.",
+                details={"house_id": house_id},
+            )
+
+    @staticmethod
+    def _due_out(due: HouseDue, today: date) -> HouseDueOut:
+        """Shape a due + COMPUTE ``is_overdue`` (outstanding and past ``due_date``).
+
+        ``is_overdue`` is a read-time signal (not stored) — the schema default is
+        never authoritative; it must be derived here so the overdue data other
+        modules (Notifications) consume is real (docs §4/§7)."""
+        out = HouseDueOut.model_validate(due)
+        out.is_overdue = due.status == "outstanding" and due.due_date < today
+        return out
+
     # --- reads (implemented in core) ---------------------------------------
 
     def outstanding_total(self, society_id: int, house_id: int) -> Decimal:
@@ -63,14 +90,16 @@ class CollectionService:
 
     def get_house_dues(self, society_id: int, house_id: int) -> HouseDuesOut:
         """Outstanding months + total + full history for a house (docs §4/§6)."""
+        self._require_house(society_id, house_id)
+        today = utcnow().date()
         all_dues = self._repo.dues_for_house(society_id, house_id)
         outstanding = [d for d in all_dues if d.status == "outstanding"]
         total = money(sum((d.amount_due for d in outstanding), Decimal("0")))
         return HouseDuesOut(
             house_id=house_id,
-            outstanding=[HouseDueOut.model_validate(d) for d in outstanding],
+            outstanding=[self._due_out(d, today) for d in outstanding],
             outstanding_total=total,
-            history=[HouseDueOut.model_validate(d) for d in all_dues],
+            history=[self._due_out(d, today) for d in all_dues],
         )
 
     # --- writes (FROZEN — Wave C implements) -------------------------------
@@ -96,6 +125,8 @@ class CollectionService:
           (+ ``paid_at``), post a ``collection`` inflow ledger entry, audit
           ``finance.payment_recorded`` (house, amount, allocations).
         """
+        self._require_house(society_id, house_id)
+
         # Exactly one of months / pay_all selects the scope.
         if req.pay_all == (req.months is not None):
             raise ValidationError(
@@ -205,6 +236,8 @@ class CollectionService:
         ``collection`` inflow; audit ``finance.prepaid_recorded`` (house, months,
         locked rate). Tied to the house.
         """
+        self._require_house(society_id, house_id)
+
         config = load_config(self._session, society_id)
         n = req.months_count
         if n not in config.prepaid_blocks:

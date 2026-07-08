@@ -10,8 +10,10 @@ Run a society's money: set the maintenance **rate** (effective-dated), generate 
 **Out of scope (future):** late-fee penalties, discounts/waivers, online payment gateway (interface-ready), per-house-type rates, receipts/invoices PDF.
 
 ## 2. Audience & permissions
-- **society_admin**. Owners may **read their own house's dues** (via occupancy link) — read-only; collection is admin-recorded in v1.
-- Permissions (`finance.*`): `finance.read`, `finance.manage_rate`, `finance.record_payment`, `finance.manage_expenses`, `finance.manage_reserve`.
+- **society_admin** (+ super_admin, + any future finance-staff role e.g. a "finance admin"). Owners may **read their own house's dues** (via occupancy link) — read-only; collection is admin-recorded in v1.
+- Permissions (`finance.*`): `finance.read` (finance views + one's **own** house dues), `finance.read_all` (view **any** house's dues/collection — society-wide), `finance.manage_rate`, `finance.record_payment`, `finance.manage_expenses`, `finance.manage_reserve`.
+- **Dues-read scope is data-driven** (docs/02 §4 — roles add with no code change): the "view any house's dues" capability is the `finance.read_all` permission, not a hardcoded role. `is_super_admin` bypasses (platform operator). A `finance.read`-only holder (resident) is restricted to a house they currently occupy. A new role (e.g. finance admin) gains society-wide dues by including `finance.read_all` in its grants.
+- On enable: society_admin is granted all 6 `finance.*`; resident is granted `finance.read`.
 - Gated `require_module('finance')` (`depends_on: houses`) + `require_permission(...)`.
 
 ## 3. Data model

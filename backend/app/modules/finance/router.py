@@ -112,19 +112,6 @@ def preview_rate(
 # ============================ Collection =====================================
 
 
-# Finance "manage" permissions — a caller holding any of these is an admin who may
-# read ANY house's dues. A caller with only finance.read (a resident) is scoped to
-# their own house (docs finance §2: "owners may read their own house's dues").
-_ADMIN_FINANCE_PERMS = frozenset(
-    {
-        "finance.manage_rate",
-        "finance.record_payment",
-        "finance.manage_expenses",
-        "finance.manage_reserve",
-    }
-)
-
-
 @router.get(
     "/houses/{house_id}/dues", response_model=HouseDuesOut, dependencies=_READ
 )
@@ -134,14 +121,19 @@ def house_dues(
     tenant: TenantContext = Depends(get_tenant_context),
     session: Session = Depends(get_session),
 ) -> HouseDuesOut:
-    """Outstanding months + total + history for a house (docs §6).
+    """Outstanding months + total + history for a house (docs finance §2/§6).
 
-    Admins (any finance manage-permission) read any house; a read-only resident is
-    restricted to a house they currently occupy (docs finance §2).
+    Data-driven scope, so future roles work with no code change:
+    - ``finance.read_all`` (society_admin, super_admin, any future finance-staff
+      role) → read ANY house's dues.
+    - ``finance.read`` only (a resident) → restricted to a house they currently
+      occupy; otherwise 403.
     """
     society_id = _society_id(tenant)
-    is_admin = bool(auth.permission_keys & _ADMIN_FINANCE_PERMS)
-    if not is_admin:
+    # super_admin bypasses (platform operator, consistent with core/deps gates);
+    # otherwise the cross-house view is the finance.read_all capability — never a
+    # hardcoded role/permission list (docs/02 §4: roles are data-driven).
+    if not (auth.is_super_admin or auth.has_permission("finance.read_all")):
         from app.modules.houses.service import HouseService
 
         if not HouseService(session).is_current_occupant(

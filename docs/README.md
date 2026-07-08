@@ -34,4 +34,4 @@ Written during/after building each module — the accurate "what actually exists
 - [implemented/onboarding.md](implemented/onboarding.md) — Module 1, COMPLETE (218 tests).
 - [implemented/house-occupancy.md](implemented/house-occupancy.md) — Module 2, COMPLETE (372 tests).
 - [implemented/vault.md](implemented/vault.md) — Module 3, COMPLETE (521 tests).
-- [implemented/finance.md](implemented/finance.md) — Module 4, COMPLETE.
+- [implemented/finance.md](implemented/finance.md) — Module 4, COMPLETE (~146 finance tests; full suite 689).

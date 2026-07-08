@@ -22,6 +22,7 @@ from app.modules.finance.schemas import (
 MODULE_KEY = "finance"
 
 PERM_READ = "finance.read"
+PERM_READ_ALL = "finance.read_all"
 PERM_MANAGE_RATE = "finance.manage_rate"
 PERM_RECORD_PAYMENT = "finance.record_payment"
 PERM_MANAGE_EXPENSES = "finance.manage_expenses"
@@ -29,6 +30,7 @@ PERM_MANAGE_RESERVE = "finance.manage_reserve"
 
 _ALL_ADMIN_PERMS = [
     PERM_READ,
+    PERM_READ_ALL,
     PERM_MANAGE_RATE,
     PERM_RECORD_PAYMENT,
     PERM_MANAGE_EXPENSES,
@@ -41,7 +43,13 @@ FINANCE_SPEC = ModuleSpec(
     permissions=[
         PermissionDef(
             PERM_READ,
-            "View dues, expenses, reserve ledger, and analytics.",
+            "View finance (expenses, reserve, analytics) and one's own house "
+            "dues. Held by residents; society-wide dues need finance.read_all.",
+        ),
+        PermissionDef(
+            PERM_READ_ALL,
+            "View ANY house's dues/collection across the society (not just one's "
+            "own). Grant to staff/finance roles that oversee collection.",
         ),
         PermissionDef(
             PERM_MANAGE_RATE,

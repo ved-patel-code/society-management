@@ -66,8 +66,9 @@ Module package `app/modules/finance/`:
   `has_dues`, `maintenance_due_day`, `record_payment`, `generate_due_cycle`.
 - `router.py` — 19 thin `/finance/*` routes, dual-gated `require_module('finance')`
   + permission (read/manage_rate/record_payment/manage_expenses/manage_reserve).
-- `spec.py` — `FINANCE_SPEC` (`depends_on: ['houses']`, 5 perms, `default_config`
-  = `{maintenance_due_day, prepaid_blocks}`, admin=all / resident=read).
+- `spec.py` — `FINANCE_SPEC` (`depends_on: ['houses']`, 6 perms incl.
+  `finance.read_all` for society-wide dues visibility, `default_config`
+  = `{maintenance_due_day, prepaid_blocks}`, admin=all 6 / resident=`finance.read`).
 - `alembic/versions/0005_finance.py` — migration (chained off `0004_vault`); the 8
   tables + indexes. No FK cascade (append-only convention).
 
@@ -124,6 +125,11 @@ Reserve: `GET /finance/reserve` · `POST /finance/reserve/entries` ·
 Analytics: `GET /finance/analytics/{collection|arrears|expenses|income|trends}`.
 Worker trigger: `POST /finance/dues/generate` (on-demand, `finance.manage_rate`).
 All dual-gated `require_module('finance')` + permission. Society always from the JWT.
+**Dues-read scope (data-driven):** `GET /finance/houses/{id}/dues` allows any house
+to `is_super_admin` or holders of `finance.read_all` (society_admin + any future
+finance-staff role); a `finance.read`-only resident is restricted to a house they
+currently occupy (else 403). No hardcoded role/permission list — a new role works by
+including `finance.read_all` in its grants (docs/02 §4).
 
 ## Audited actions (emitted)
 `finance.rate_set` · `finance.payment_recorded` / `finance.payment_voided` ·
@@ -146,9 +152,10 @@ All dual-gated `require_module('finance')` + permission. Society always from the
 
 ## Testing
 Reuses the shared harness (`backend/tests/`): isolated per-worker `society_test`
-DBs, truncate+reseed, existing fixtures + `tests/_finance_helpers.py`. 90 finance
-tests across the 7 feature files + the Phase-3 gate (cross-module e2e, config,
-security/vulnerability, deep edge cases). Run:
+DBs, truncate+reseed, existing fixtures + `tests/_finance_helpers.py`. ~146 finance
+tests across 13 files — 7 per-feature (rates/dues/collection/expenses/reserve/
+analytics/worker) + the Phase-3 gate (e2e, contract, enable, edge, security,
+concurrency). Full suite **689 passed, 2 skipped**. Run:
 `docker compose exec backend bash scripts/run-tests.sh`.
 
 ## Deviations from design (drift vs docs/modules/finance.md)
