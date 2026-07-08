@@ -18,9 +18,6 @@ from sqlalchemy import select
 
 from app.modules.notices.models import NoticeAttachment
 from app.modules.vault.models import VaultDocument
-from app.platform.societies.schemas import ModuleAllocation, SocietyCreate
-from app.platform.societies.service import SocietyService
-from app.platform.users.provisioning import UserProvisioningService
 
 from tests._notices_helpers import (
     EXE_BYTES,
@@ -33,9 +30,9 @@ from tests._notices_helpers import (
     owned_house_for,
     owner_login_bearer,
     setup_notices,
+    society_with_tiny_quota as _society_with_tiny_quota,
 )
 from tests._vault_helpers import storage_override  # noqa: F401  (fixture)
-from tests.conftest import DEFAULT_MEMBER_PASSWORD
 
 pytestmark = pytest.mark.usefixtures("storage_override")
 
@@ -57,34 +54,10 @@ def _get_detail(auth, hdr, notice_id) -> dict:
     return resp.json()
 
 
-def _society_with_tiny_quota(db, superadmin, auth, *, limit_bytes=8):
-    """A fresh society with a tiny ``storage_limit_bytes`` (forces Vault 413).
-
-    Enables onboarding + houses + vault + notices, provisions + activates a
-    society_admin, and returns ``(society, admin, hdr)``.
-    """
-    soc = SocietyService(db).create_society(
-        SocietyCreate(
-            name="Notices Tiny Quota Society",
-            storage_limit_bytes=limit_bytes,
-            default_member_password=DEFAULT_MEMBER_PASSWORD,
-        ),
-        actor_user_id=superadmin.id,
-    )
-    db.commit()
-    db.refresh(soc)
-    admin = UserProvisioningService(db).create_or_link_user(
-        email="admin-quota@notices.local",
-        society_id=soc.id,
-        role_key="society_admin",
-        profile={"full_name": "Admin Quota"},
-        actor_user_id=superadmin.id,
-    )
-    db.commit()
-    db.refresh(admin)
-    enable_notices(db, soc, superadmin)
-    hdr = admin_bearer(auth, admin)
-    return soc, admin, hdr
+# NOTE: ``_society_with_tiny_quota`` has been promoted to
+# ``tests._notices_helpers.society_with_tiny_quota`` (imported above, aliased to
+# this historical local name) per the Phase-3 gate matrix — kept as a thin alias
+# so this file's existing call sites are undisturbed.
 
 
 # ---------------------------------------------------------------------------

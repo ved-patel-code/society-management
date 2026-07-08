@@ -28,7 +28,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.common.errors import ConflictError, ValidationError
-from app.common.html_sanitizer import sanitize_html
+from app.common.html_sanitizer import sanitize_html, sanitize_plain_text
 from app.common.time import utcnow
 from app.modules.notices import events
 from app.modules.notices.models import Notice
@@ -52,8 +52,34 @@ def sanitize_body(raw: str) -> str:
     THE single place a body is cleaned before storage — the stored value is
     already safe to render. Delegates to the Foundation ``common/html_sanitizer``
     (nh3). Any writer of ``Notice.body`` MUST route through here.
+
+    A body with no visible text once markup is stripped (e.g. ``"   "`` or
+    ``"<p></p>"``) → 422: a notice must carry real content, mirroring the
+    title's blank guard (the request schema's ``min_length`` can't see through
+    tags/whitespace).
     """
+    if not sanitize_plain_text(raw).strip():
+        raise ValidationError("Body must not be empty.")
     return sanitize_html(raw)
+
+
+def sanitize_title(raw: str) -> str:
+    """Strip ALL markup from a notice title (defense-in-depth).
+
+    A title is plain text — it needs no formatting — so every tag is removed
+    (keeping the visible text). THE single place a title is cleaned before
+    storage; any writer of ``Notice.title`` MUST route through here. Guards
+    against a ``<script>`` in a title being stored verbatim and later rendered
+    into HTML/email/a notification.
+
+    If stripping markup leaves the title blank (e.g. a title that was *only*
+    tags like ``<script></script>``), that is a 422 — a notice must have a real
+    title, matching the "title must not be blank" request-schema invariant.
+    """
+    cleaned = sanitize_plain_text(raw).strip()
+    if not cleaned:
+        raise ValidationError("Title must not be blank after removing markup.")
+    return cleaned
 
 
 # --- status transitions ------------------------------------------------------

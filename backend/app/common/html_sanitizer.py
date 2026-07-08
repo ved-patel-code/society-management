@@ -71,3 +71,16 @@ def sanitize_html(raw: str) -> str:
         link_rel="noopener noreferrer",
         strip_comments=True,
     )
+
+
+def sanitize_plain_text(raw: str) -> str:
+    """Strip ALL HTML from ``raw``, leaving only its text content.
+
+    For plain-text fields (e.g. a notice title) that must never carry markup:
+    ``nh3.clean`` with an empty tag allow-list removes every tag (and the
+    contents of ``script``/``style``) while keeping the visible text, so a
+    ``<script>`` or ``<b>`` in the input is neutralized rather than stored
+    verbatim. Defense-in-depth for any context that later renders the value into
+    HTML/email/a notification.
+    """
+    return nh3.clean(raw, tags=set(), attributes={}, strip_comments=True)

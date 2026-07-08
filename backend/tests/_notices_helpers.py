@@ -271,3 +271,51 @@ def frozen_today(frozen_date: date = FROZEN_TODAY):
         yield
     finally:
         mp.undo()
+
+
+# ===========================================================================
+# tiny-quota society (promoted from test_notices_attachments._society_with_tiny_quota)
+# ===========================================================================
+
+
+def society_with_tiny_quota(db, superadmin, auth, *, limit_bytes=8):
+    """A fresh society with a tiny ``storage_limit_bytes`` (forces Vault 413).
+
+    Enables onboarding + houses + vault + notices, provisions + activates a
+    society_admin, and returns ``(society, admin, hdr)``.
+    """
+    soc = SocietyService(db).create_society(
+        SocietyCreate(
+            name="Notices Tiny Quota Society",
+            storage_limit_bytes=limit_bytes,
+            default_member_password=DEFAULT_MEMBER_PASSWORD,
+        ),
+        actor_user_id=superadmin.id,
+    )
+    db.commit()
+    db.refresh(soc)
+    admin = UserProvisioningService(db).create_or_link_user(
+        email="admin-quota@notices.local",
+        society_id=soc.id,
+        role_key="society_admin",
+        profile={"full_name": "Admin Quota"},
+        actor_user_id=superadmin.id,
+    )
+    db.commit()
+    db.refresh(admin)
+    enable_notices(db, soc, superadmin)
+    hdr = admin_bearer(auth, admin)
+    return soc, admin, hdr
+
+
+# ===========================================================================
+# crafted / cross-society bearer (mirrors _complaints_helpers.crafted_bearer)
+# ===========================================================================
+
+
+def crafted_bearer(make_token, *, user_id, society_id, role_ids) -> dict[str, str]:
+    """A bearer header for a hand-crafted JWT (cross-society / no-perms attacks)."""
+    token = make_token(
+        user_id=user_id, active_society_id=society_id, role_ids=role_ids
+    )
+    return {"Authorization": f"Bearer {token}"}

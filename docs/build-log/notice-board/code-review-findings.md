@@ -45,6 +45,18 @@ gap + a test-reliability bug + nits) were applied and the suite re-run green
   the managing admin hasn't "read" the notice). The `read_all` docstring was
   softened to state it returns the active-notice count and the route discards it.
 
+## Follow-up (user decision, post-review)
+
+- **Title sanitization (hardening).** The test-gate design surfaced that only
+  `body` was HTML-sanitized; `title` was plain-text-validated but stored verbatim
+  (a `<script>` in a title would persist). Spec §4 only promised body
+  sanitization, and the risk is low (the frontend renders JSON as text), but for a
+  client-ready app the user chose defense-in-depth. **Applied:** a new Foundation
+  `sanitize_plain_text` (nh3, empty tag allow-list — strips all markup, keeps
+  text) + `support.sanitize_title`, applied in `create` + `edit`. A title that is
+  only markup (blank after stripping) → 422 (matches the "title must not be blank"
+  request invariant). `notice_posted`'s `title` is now sanitized too.
+
 ## Verified clean (no change needed)
 
 Tenant isolation in every repository query (`society_id`-scoped; cross-society id

@@ -114,3 +114,74 @@ def test_a_read_state_does_not_leak_into_b_receipts(
     assert rec_b["read_count"] == 0
     a_owner_id = _ro.id
     assert a_owner_id not in {u["user_id"] for u in rec_b["unread"]}
+
+
+def test_cross_society_attachment_id_guess_404(
+    auth, db, society, admin_user, superadmin
+):
+    """B guesses A's attachment id under B's OWN notice path -> 404 (the
+    attachment lookup is scoped by (society_id, notice_id, attachment_id) —
+    an id that belongs to a different society/notice never resolves)."""
+    hdr_a = setup_notices(db, society, admin_user, superadmin, auth)
+    notice_a = _publish(auth, hdr_a, title="A only", body="<p>a</p>")
+    att_resp = add_attachment_http(auth.client, hdr_a, notice_a["id"])
+    assert att_resp.status_code == 200, att_resp.text
+    att_a_id = att_resp.json()["attachments"][0]["id"]
+
+    soc_b, _admin_b, hdr_b = second_society_with_notices(db, superadmin, auth)
+    notice_b = _publish(auth, hdr_b, title="B only", body="<p>b</p>")
+
+    resp = auth.client.delete(
+        f"/notices/{notice_b['id']}/attachments/{att_a_id}", headers=hdr_b
+    )
+    assert resp.status_code == 404, resp.text
+
+
+def test_per_society_audit_scoping(auth, db, society, admin_user, superadmin):
+    """A's and B's audit trails never cross — each society's notice.* rows
+    reference only that society's own notice ids."""
+    from tests._notices_helpers import audit_actions
+
+    hdr_a = setup_notices(db, society, admin_user, superadmin, auth)
+    notice_a = _publish(auth, hdr_a, title="A audit", body="<p>a</p>")
+
+    soc_b, _admin_b, hdr_b = second_society_with_notices(db, superadmin, auth)
+    notice_b = _publish(auth, hdr_b, title="B audit", body="<p>b</p>")
+
+    actions_a = audit_actions(db, society.id)
+    actions_b = audit_actions(db, soc_b.id)
+
+    a_notice_ids = {eid for (_a, et, eid) in actions_a if et == "notice"}
+    b_notice_ids = {eid for (_a, et, eid) in actions_b if et == "notice"}
+
+    assert notice_a["id"] in a_notice_ids
+    assert notice_b["id"] not in a_notice_ids
+    assert notice_b["id"] in b_notice_ids
+    assert notice_a["id"] not in b_notice_ids
+
+
+def test_read_all_is_per_society_scoped(auth, db, society, admin_user, superadmin):
+    """A's owner running read-all only clears A's active notices; B's receipts
+    still show B's own owner as unread — A's read-all never touches B."""
+    hdr_a = setup_notices(db, society, admin_user, superadmin, auth)
+    owned_house_for(auth, hdr_a, email="a-owner2@x.com")
+    ro_hdr, _ro = owner_login_bearer(auth, db, email="a-owner2@x.com")
+    _publish(auth, hdr_a, title="A1", body="<p>a1</p>")
+    _publish(auth, hdr_a, title="A2", body="<p>a2</p>")
+
+    soc_b, _admin_b, hdr_b = second_society_with_notices(db, superadmin, auth)
+    owned_house_for(auth, hdr_b, email="b-owner2@x.com")
+    b_ro_hdr, b_owner = owner_login_bearer(auth, db, email="b-owner2@x.com")
+    notice_b = _publish(auth, hdr_b, title="B1", body="<p>b1</p>")
+
+    # A's owner read-alls — only affects A.
+    assert auth.client.post("/notices/read-all", headers=ro_hdr).status_code == 204
+    feed_a = auth.client.get("/notices", headers=ro_hdr).json()
+    assert feed_a["unread_count"] == 0
+
+    # B's owner is still unread on B's notice — unaffected by A's read-all.
+    rec_b = auth.client.get(
+        f"/notices/{notice_b['id']}/receipts", headers=hdr_b
+    ).json()
+    assert rec_b["unread_count"] == 1
+    assert b_owner.id in {u["user_id"] for u in rec_b["unread"]}

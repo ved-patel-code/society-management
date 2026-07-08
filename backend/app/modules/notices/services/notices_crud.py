@@ -80,7 +80,7 @@ class NoticesCrudService:
         notice = self._repo.add_notice(
             Notice(
                 society_id=society_id,
-                title=req.title,
+                title=support.sanitize_title(req.title),
                 body=support.sanitize_body(req.body),
                 status=STATUS_DRAFT,
                 is_pinned=req.is_pinned,
@@ -158,11 +158,13 @@ class NoticesCrudService:
         content_changed = False
         meta_changed = False
 
-        if req.title is not None and req.title != notice.title:
-            before["title"] = notice.title
-            after["title"] = req.title
-            notice.title = req.title
-            content_changed = True
+        if req.title is not None:
+            new_title = support.sanitize_title(req.title)
+            if new_title != notice.title:
+                before["title"] = notice.title
+                after["title"] = new_title
+                notice.title = new_title
+                content_changed = True
 
         if req.body is not None:
             new_body = support.sanitize_body(req.body)
