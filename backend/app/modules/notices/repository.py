@@ -19,7 +19,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from app.modules.notices.models import Notice, NoticeAttachment, NoticeRead
-from app.modules.notices.schemas import STATUS_PUBLISHED
+from app.modules.notices.schemas import STATUS_PUBLISHED, STATUS_WITHDRAWN
 
 
 class NoticeRepository:
@@ -83,7 +83,7 @@ class NoticeRepository:
             )
         if archive_only:
             conds.append(
-                (Notice.status == STATUS_WITHDRAWN_LITERAL)
+                (Notice.status == STATUS_WITHDRAWN)
                 | (
                     (Notice.status == STATUS_PUBLISHED)
                     & (Notice.expires_at.isnot(None))
@@ -258,9 +258,3 @@ class NoticeRepository:
                 (Notice.expires_at.is_(None)) | (Notice.expires_at > now),
             )
         ).scalar_one()
-
-
-# Local literal to avoid importing the withdrawn constant name into the archive
-# filter expression above (keeps the module import graph flat). Value matches
-# schemas.STATUS_WITHDRAWN.
-STATUS_WITHDRAWN_LITERAL = "withdrawn"

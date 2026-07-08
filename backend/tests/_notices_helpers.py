@@ -243,6 +243,8 @@ def add_attachment_http(client, hdr, notice_id, *, data=PNG_BYTES, filename="a.p
 
 _UTCNOW_CONSUMERS = (
     "app.modules.notices.services.support.utcnow",
+    "app.modules.notices.services.receipts.utcnow",
+    "app.modules.notices.services.lifecycle.utcnow",
     "app.modules.notices.service.utcnow",
 )
 

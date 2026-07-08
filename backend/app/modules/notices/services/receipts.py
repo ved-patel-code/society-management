@@ -40,13 +40,13 @@ class ReceiptsService:
         self._repo = repo
 
     def read_all(self, society_id: int, *, caller_user_id: int) -> int:
-        """Mark every active notice read for the caller; return how many were
-        newly (or already) covered (§6). Idempotent.
+        """Mark every active notice read for the caller (§6). Idempotent.
 
         One active-ids query, then an idempotent (``ON CONFLICT DO NOTHING``)
         insert per active notice — a second call for the same caller is a
-        harmless no-op. Reads are NOT audited (docs §4). Returns the count of
-        active notices covered.
+        harmless no-op. Reads are NOT audited (docs §4). Returns the number of
+        currently-active notices (the caller now has a read row for each); the
+        route discards it (204).
         """
         now = utcnow()
         active_ids = self._repo.active_notice_ids(society_id, now=now)

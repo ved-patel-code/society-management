@@ -92,12 +92,15 @@ def apply_publish(notice: Notice, *, at: datetime | None = None) -> None:
     when = at or utcnow()
     notice.published_at = when
     notice.status = STATUS_PUBLISHED
+    # Emit ``published_at`` as an ISO-8601 string (JSON-safe) so a future
+    # Notifications subscriber can serialize the payload to a queue/worker
+    # without special datetime handling — matches this module's audit idiom.
     events.emit_posted(
         {
             "notice_id": notice.id,
             "society_id": notice.society_id,
             "title": notice.title,
-            "published_at": when,
+            "published_at": when.isoformat(),
         }
     )
 

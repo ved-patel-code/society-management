@@ -124,6 +124,40 @@ def test_create_sanitizes_body(auth, db, society, admin_user, superadmin):
     assert "onclick" not in row.body.lower()
 
 
+def test_create_sanitizes_dangerous_urls_and_images(
+    auth, db, society, admin_user, superadmin
+):
+    """A ``javascript:``/``data:`` href, an ``<img onerror>``, and a raw
+    ``<iframe>`` are all stripped (spec §4 XSS policy) — locks the nh3 whitelist
+    against future edits (``ALLOWED_URL_SCHEMES`` + no ``img``/``iframe``)."""
+    hdr = setup_notices(db, society, admin_user, superadmin, auth)
+    payload = (
+        '<a href="javascript:steal()">js</a>'
+        '<a href="data:text/html,evil">data</a>'
+        '<a href="https://ok.example">safe</a>'
+        '<img src="x" onerror="evil()">'
+        "<iframe src=\"https://evil.example\"></iframe>"
+        "<p>body text</p>"
+    )
+    detail = _create(auth, hdr, title="URLs", body=payload, publish=True)
+    body = detail["body"].lower()
+
+    # No dangerous scheme, image, iframe, or event handler survives.
+    assert "javascript:" not in body
+    assert "data:text/html" not in body
+    assert "<img" not in body
+    assert "<iframe" not in body
+    assert "onerror" not in body
+    # The one safe link + the text are preserved.
+    assert "https://ok.example" in detail["body"]
+    assert "body text" in body
+
+    # Same guarantee at rest in the DB.
+    row = db.query(Notice).filter(Notice.id == detail["id"]).one()
+    rb = row.body.lower()
+    assert "javascript:" not in rb and "<img" not in rb and "<iframe" not in rb
+
+
 # ===========================================================================
 # edit
 # ===========================================================================

@@ -125,11 +125,11 @@ class AttachmentsService:
             },
         )
 
+        # ``is_read`` on the attachment response is not meaningful (the admin
+        # managing attachments has not "read" the notice) — report False for
+        # consistency with the create response (matches Wave A's create).
         return support.assemble_detail(
-            self._session,
-            self._repo,
-            notice,
-            is_read=self._repo.has_read(society_id, notice_id, actor_user_id),
+            self._session, self._repo, notice, is_read=False
         )
 
     async def remove_attachment(
