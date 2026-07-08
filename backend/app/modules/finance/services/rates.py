@@ -11,6 +11,8 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
+from app.common.errors import ConflictError
+from app.modules.finance.models import MaintenanceRate
 from app.modules.finance.repository import FinanceRepository
 from app.modules.finance.schemas import (
     RateHistoryOut,
@@ -18,7 +20,9 @@ from app.modules.finance.schemas import (
     RatePreviewOut,
     RateSetRequest,
 )
+from app.modules.finance.services.support import money
 from app.modules.houses.service import HouseService
+from app.platform.audit.service import AuditService
 
 
 class RatesService:
@@ -81,6 +85,34 @@ class RatesService:
 
         Wave A: reject a duplicate ``valid_from`` (uniqueness), insert a new
         ``maintenance_rates`` row (never edit history), audit ``finance.rate_set``
-        (amount + valid_from), return it.
+        (amount + valid_from), return it. ``valid_from`` is month-aligned by the
+        schema. NEVER commits (the request session commits once at end — docs/03).
         """
-        raise NotImplementedError("Wave A: set_rate")
+        # Pre-check the UNIQUE(society_id, valid_from) for a clean 409 rather than
+        # surfacing a raw DB integrity error (docs §4: setting a new rate is always
+        # a new effective month; history is never edited).
+        if self._repo.rate_at_valid_from(society_id, req.valid_from) is not None:
+            raise ConflictError(
+                "A rate already exists for this effective month.",
+                details={"valid_from": str(req.valid_from)},
+            )
+
+        amount = money(req.amount)
+        row = self._repo.add_rate(
+            MaintenanceRate(
+                society_id=society_id,
+                amount=amount,
+                valid_from=req.valid_from,
+                created_by=actor_user_id,
+            )
+        )
+
+        AuditService(self._session).record(
+            action="finance.rate_set",
+            actor_user_id=actor_user_id,
+            society_id=society_id,
+            entity_type="maintenance_rate",
+            entity_id=row.id,
+            after={"amount": str(amount), "valid_from": str(req.valid_from)},
+        )
+        return RateOut.model_validate(row)

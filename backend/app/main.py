@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 
 from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -43,12 +44,16 @@ def _install_error_handlers(app: FastAPI) -> None:
     async def _validation_handler(
         _: Request, exc: RequestValidationError
     ) -> JSONResponse:
+        # ``exc.errors()`` can carry non-JSON-serializable objects in ``ctx``
+        # (a raw ``ValueError`` from a custom ``field_validator``, ``date``s,
+        # etc.). Run it through ``jsonable_encoder`` so the 422 renders cleanly
+        # instead of the default ``json.dumps`` raising and turning it into a 500.
         return JSONResponse(
             status_code=422,
             content={
                 "code": "validation_error",
                 "message": "Request validation failed.",
-                "details": {"errors": exc.errors()},
+                "details": {"errors": jsonable_encoder(exc.errors())},
             },
         )
 

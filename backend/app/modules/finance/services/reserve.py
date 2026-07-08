@@ -9,13 +9,22 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
+from app.common.errors import ConflictError, NotFoundError, ValidationError
 from app.modules.finance.repository import FinanceRepository
 from app.modules.finance.schemas import (
+    ENTRY_TYPE_DIRECTION,
+    LEDGER_DIRECTIONS,
+    LEDGER_SOURCE_TYPES,
     LedgerEntryOut,
     ReserveEntryCreateRequest,
     ReserveOut,
     ReserveReconcileRequest,
 )
+from app.modules.finance.services.support import money, post_ledger_entry
+from app.platform.audit.service import AuditService
+
+# System-posted entry types corrected via their own void flow, not here (docs §4).
+_SYSTEM_ENTRY_TYPES = frozenset({"collection", "expense"})
 
 
 class ReserveService:
@@ -58,7 +67,57 @@ class ReserveService:
         requires an explicit ``req.direction``); post via
         ``support.post_ledger_entry``; audit ``finance.reserve_entry_posted``.
         """
-        raise NotImplementedError("Wave E: post_entry")
+        # entry_type is schema-validated to be in RESERVE_POSTABLE_ENTRY_TYPES.
+        if req.entry_type == "adjustment":
+            # Adjustment has no natural direction — the caller must supply one.
+            if req.direction is None:
+                raise ValidationError(
+                    "direction is required for an adjustment entry "
+                    "(inflow or outflow)."
+                )
+            direction = req.direction
+        else:
+            direction = ENTRY_TYPE_DIRECTION[req.entry_type]
+
+        # Defensive: direction is validated in the schema, but never trust a
+        # fixed-type mapping to have produced an unexpected value.
+        if direction not in LEDGER_DIRECTIONS:
+            raise ValidationError(
+                f"direction must be one of {sorted(LEDGER_DIRECTIONS)}."
+            )
+
+        # Optional link (e.g. resale_transfer tied to a house).
+        if req.source_type is not None and req.source_type not in LEDGER_SOURCE_TYPES:
+            raise ValidationError(
+                f"source_type must be one of {sorted(LEDGER_SOURCE_TYPES)}."
+            )
+
+        entry = post_ledger_entry(
+            self._repo,
+            society_id=society_id,
+            entry_type=req.entry_type,
+            direction=direction,
+            amount=money(req.amount),
+            occurred_on=req.occurred_on,
+            description=req.description,
+            source_type=req.source_type,
+            source_id=req.source_id,
+            recorded_by=actor_user_id,
+        )
+        AuditService(self._session).record(
+            action="finance.reserve_entry_posted",
+            actor_user_id=actor_user_id,
+            society_id=society_id,
+            entity_type="ledger_entry",
+            entity_id=entry.id,
+            after={
+                "entry_type": entry.entry_type,
+                "direction": entry.direction,
+                "amount": str(entry.amount),
+                "occurred_on": entry.occurred_on.isoformat(),
+            },
+        )
+        return LedgerEntryOut.model_validate(entry)
 
     def reverse_entry(
         self, society_id: int, entry_id: int, *, actor_user_id: int
@@ -72,7 +131,55 @@ class ReserveService:
         ``is_reversed=true``; audit ``finance.reserve_entry_reversed``. Both stay
         visible.
         """
-        raise NotImplementedError("Wave E: reverse_entry")
+        original = self._repo.get_ledger_entry(society_id, entry_id)
+        if original is None:
+            raise NotFoundError("Ledger entry not found.")
+
+        if original.is_reversed:
+            raise ConflictError("This entry has already been reversed.")
+        if original.entry_type == "reversal":
+            raise ValidationError(
+                "A reversal entry cannot itself be reversed."
+            )
+        if original.entry_type in _SYSTEM_ENTRY_TYPES:
+            raise ValidationError(
+                f"A system-posted '{original.entry_type}' entry is corrected by "
+                "voiding the underlying payment/expense, not via reserve reversal."
+            )
+
+        # Negating entry: opposite direction, same amount, sits on the original's
+        # date so it nets in reports at the same point in time (docs §4).
+        opposite = "outflow" if original.direction == "inflow" else "inflow"
+        reversal = post_ledger_entry(
+            self._repo,
+            society_id=society_id,
+            entry_type="reversal",
+            direction=opposite,
+            amount=money(original.amount),
+            occurred_on=original.occurred_on,
+            description=f"Reversal of ledger entry #{original.id}",
+            source_type=original.source_type,
+            source_id=original.source_id,
+            recorded_by=actor_user_id,
+            reverses_entry_id=original.id,
+        )
+        original.is_reversed = True
+        self._session.flush()
+
+        AuditService(self._session).record(
+            action="finance.reserve_entry_reversed",
+            actor_user_id=actor_user_id,
+            society_id=society_id,
+            entity_type="ledger_entry",
+            entity_id=original.id,
+            before={
+                "entry_type": original.entry_type,
+                "direction": original.direction,
+                "amount": str(original.amount),
+            },
+            after={"reversal_entry_id": reversal.id},
+        )
+        return LedgerEntryOut.model_validate(reversal)
 
     def reconcile(
         self,
@@ -88,4 +195,38 @@ class ReserveService:
         negative) for ``abs(diff)``; audit ``finance.reserve_reconciled``. A zero
         diff is a no-op (nothing posted).
         """
-        raise NotImplementedError("Wave E: reconcile")
+        computed = self._repo.reserve_balance(society_id)
+        actual = money(req.actual_balance)
+        diff = actual - computed
+
+        # Zero diff: the ledger already matches the bank. The API contract is
+        # "an adjustment is posted only when there is a difference", so we do NOT
+        # create a phantom zero-amount entry — we surface a clear 422 instead.
+        if diff == 0:
+            raise ValidationError(
+                "Reserve already reconciled; no difference to adjust."
+            )
+
+        direction = "inflow" if diff > 0 else "outflow"
+        entry = post_ledger_entry(
+            self._repo,
+            society_id=society_id,
+            entry_type="adjustment",
+            direction=direction,
+            amount=money(abs(diff)),
+            occurred_on=req.occurred_on,
+            description=req.description or "Reconcile to bank",
+            source_type=None,
+            source_id=None,
+            recorded_by=actor_user_id,
+        )
+        AuditService(self._session).record(
+            action="finance.reserve_reconciled",
+            actor_user_id=actor_user_id,
+            society_id=society_id,
+            entity_type="ledger_entry",
+            entity_id=entry.id,
+            before={"computed": str(computed)},
+            after={"actual": str(actual), "adjustment": str(diff)},
+        )
+        return LedgerEntryOut.model_validate(entry)

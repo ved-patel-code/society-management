@@ -15,7 +15,7 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import Select, and_, func, select
+from sqlalchemy import Select, and_, case, func, select
 from sqlalchemy.orm import Session
 
 from app.modules.finance.models import (
@@ -337,6 +337,48 @@ class FinanceRepository:
         self._session.flush()
         return entry
 
+    def collection_entry_for_payment(
+        self, society_id: int, payment_id: int
+    ) -> LedgerEntry | None:
+        """The original ``collection`` entry a payment posted (void reversal).
+
+        Located by (``source_type=payment``, ``source_id=payment_id``) among the
+        NON-reversal, not-yet-reversed collection entries — so a re-void can never
+        match the reversal it earlier produced.
+        """
+        return self._session.execute(
+            select(LedgerEntry)
+            .where(
+                LedgerEntry.society_id == society_id,
+                LedgerEntry.entry_type == "collection",
+                LedgerEntry.source_type == "payment",
+                LedgerEntry.source_id == payment_id,
+            )
+            .order_by(LedgerEntry.id)
+            .limit(1)
+        ).scalar_one_or_none()
+
+    def expense_entry_for_expense(
+        self, society_id: int, expense_id: int
+    ) -> LedgerEntry | None:
+        """The original ``expense`` outflow entry for an expense (void reversal).
+
+        Located by (``entry_type=expense``, ``source_type=expense``,
+        ``source_id=expense_id``) — the exact row the record-expense flow posted —
+        so a reversal negates it and a re-void can never match its own reversal.
+        """
+        return self._session.execute(
+            select(LedgerEntry)
+            .where(
+                LedgerEntry.society_id == society_id,
+                LedgerEntry.entry_type == "expense",
+                LedgerEntry.source_type == "expense",
+                LedgerEntry.source_id == expense_id,
+            )
+            .order_by(LedgerEntry.id)
+            .limit(1)
+        ).scalar_one_or_none()
+
     def reserve_balance(self, society_id: int) -> Decimal:
         """Σ inflow − Σ outflow over ALL entries (computed reserve — docs §4).
 
@@ -516,3 +558,87 @@ class FinanceRepository:
             )
         ).scalar_one()
         return Decimal(result)
+
+    def reversal_totals_by_reversed_type(
+        self,
+        society_id: int,
+        *,
+        year: int | None = None,
+        month: int | None = None,
+    ) -> dict[str, Decimal]:
+        """Σ of ``reversal`` amounts keyed by the ORIGINAL entry's ``entry_type``.
+
+        A reversal is a separate negating row referencing the entry it undoes
+        (``reverses_entry_id``). To net reversals honestly we attribute each
+        reversal's amount back to the type it negated — a voided collection's
+        reversal counts against ``collection``, a voided expense's against
+        ``expense``. ONE self-join aggregate pushed to the DB (docs/03 §4); no
+        Python-side row loop. The optional period filters on the REVERSAL's own
+        ``occurred_on`` (when the correction happened), matching the per-type
+        totals' period semantics.
+        """
+        original = self._session.query(LedgerEntry).subquery()
+        conditions = [
+            LedgerEntry.society_id == society_id,
+            LedgerEntry.entry_type == "reversal",
+            LedgerEntry.reverses_entry_id.isnot(None),
+        ]
+        if year is not None:
+            conditions.append(
+                func.extract("year", LedgerEntry.occurred_on) == year
+            )
+        if month is not None:
+            conditions.append(
+                func.extract("month", LedgerEntry.occurred_on) == month
+            )
+        rows = self._session.execute(
+            select(
+                original.c.entry_type,
+                func.coalesce(func.sum(LedgerEntry.amount), 0),
+            )
+            .select_from(LedgerEntry)
+            .join(original, original.c.id == LedgerEntry.reverses_entry_id)
+            .where(and_(*conditions))
+            .group_by(original.c.entry_type)
+        ).all()
+        return {str(r[0]): Decimal(r[1]) for r in rows}
+
+    def ledger_monthly_totals(
+        self, society_id: int
+    ) -> list[tuple[int, int, Decimal, Decimal]]:
+        """Per-(year, month) (collected, expense) NET of reversals, oldest-first.
+
+        ONE GROUP BY over ``occurred_on`` (no per-month round-trips — docs/03 §4).
+        Collection inflow and expense outflow are summed as positives; each
+        ``reversal`` row is attributed (via its reversed entry's type) as a
+        NEGATIVE to the matching bucket, so a voided collection/expense reduces
+        that month's figure honestly. Returns ``(year, month, collected,
+        expense)`` newest-last.
+        """
+        y = func.extract("year", LedgerEntry.occurred_on)
+        m = func.extract("month", LedgerEntry.occurred_on)
+        original = self._session.query(LedgerEntry).subquery()
+        # A reversal buckets under its target's type; other rows under their own.
+        eff_type = func.coalesce(original.c.entry_type, LedgerEntry.entry_type)
+        # Reversals subtract; every other row adds.
+        signed = func.sum(
+            case(
+                (LedgerEntry.entry_type == "reversal", -LedgerEntry.amount),
+                else_=LedgerEntry.amount,
+            )
+        )
+        collected = func.coalesce(signed.filter(eff_type == "collection"), 0)
+        expense = func.coalesce(signed.filter(eff_type == "expense"), 0)
+        rows = self._session.execute(
+            select(y, m, collected, expense)
+            .select_from(LedgerEntry)
+            .outerjoin(
+                original, original.c.id == LedgerEntry.reverses_entry_id
+            )
+            .where(LedgerEntry.society_id == society_id)
+            .group_by(y, m)
+            .order_by(y, m)
+        ).all()
+        return [
+            (int(r[0]), int(r[1]), Decimal(r[2]), Decimal(r[3])) for r in rows
+        ]

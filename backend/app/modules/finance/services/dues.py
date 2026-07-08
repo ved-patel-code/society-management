@@ -11,9 +11,13 @@ from datetime import date
 
 from sqlalchemy.orm import Session
 
+from app.common.time import utcnow
+from app.modules.finance.models import HouseDue
+from app.modules.finance.periods import due_date_for, month_range, period_of
 from app.modules.finance.repository import FinanceRepository
 from app.modules.finance.services.rates import RatesService
-from app.modules.finance.services.support import load_config
+from app.modules.finance.services.support import load_config, money
+from app.modules.houses.service import HouseService
 
 
 class DuesService:
@@ -53,4 +57,43 @@ class DuesService:
 
         Reached via the House service interface; never reads house tables directly.
         """
-        raise NotImplementedError("Wave B: generate_due_cycle")
+        due_day = load_config(self._session, society_id).maintenance_due_day
+        as_of = as_of or utcnow().date()
+        current_period = period_of(as_of)
+
+        created = 0
+        for house_id, first_left_empty_on in HouseService(
+            self._session
+        ).houses_owing(society_id):
+            start = (
+                period_of(first_left_empty_on)
+                if first_left_empty_on is not None
+                else current_period
+            )
+            # One existing-periods fetch per house (idempotency / no N+1); it also
+            # covers prepaid-materialized months.
+            existing = self._repo.existing_periods(society_id, house_id)
+            for year, month in month_range(start, current_period):
+                if (year, month) in existing:
+                    continue
+                rate = self._rates.rate_amount_for_month(
+                    society_id, date(year, month, 1)
+                )
+                if rate is None:
+                    # No rate set for/before this month — can't bill it. Skip.
+                    continue
+                self._repo.add_due(
+                    HouseDue(
+                        society_id=society_id,
+                        house_id=house_id,
+                        period_year=year,
+                        period_month=month,
+                        amount_due=money(rate),
+                        due_date=due_date_for(year, month, due_day),
+                        status="outstanding",
+                        source="accrued",
+                    )
+                )
+                created += 1
+
+        return created

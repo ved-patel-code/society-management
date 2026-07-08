@@ -141,7 +141,19 @@ def _seed_baseline(db: Session) -> None:
 
 @pytest.fixture(autouse=True)
 def _reset_db() -> Iterator[None]:
-    """Truncate + reseed before every test (autouse → total isolation)."""
+    """Truncate + reseed before every test (autouse → total isolation).
+
+    Before truncating, dispose the app engine's connection pool. A prior test's
+    ``TestClient`` request leaves its pooled connection idle-in-transaction (it
+    holds ``AccessShareLock`` on whatever tables it read); the ``TRUNCATE`` needs
+    ``AccessExclusiveLock`` on every table, so a surviving reader deadlocks the
+    reset. Disposing the pool guarantees no stale reader lock outlives the test
+    that opened it — the truncate then has the DB to itself. This grew load-bearing
+    once the finance tables widened the truncate set and the lock window with it.
+    """
+    from app.core.db import engine
+
+    engine.dispose()
     db = SessionLocal()
     try:
         _truncate_all(db)

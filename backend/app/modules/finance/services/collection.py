@@ -7,20 +7,41 @@ are frozen stubs — Wave C implements them.
 """
 from __future__ import annotations
 
+from datetime import datetime, time, timezone
 from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
+from app.common.errors import ConflictError, NotFoundError, ValidationError
+from app.common.time import utcnow
+from app.modules.finance.models import (
+    HouseDue,
+    Payment,
+    PaymentAllocation,
+    PrepaidBlock,
+)
+from app.modules.finance.periods import (
+    add_months,
+    due_date_for,
+    period_key,
+    period_of,
+)
 from app.modules.finance.repository import FinanceRepository
 from app.modules.finance.schemas import (
     HouseDueOut,
     HouseDuesOut,
+    PaymentAllocationOut,
     PaymentOut,
     PaymentRecordRequest,
     PaymentVoidRequest,
     PrepaidRecordRequest,
 )
-from app.modules.finance.services.support import money
+from app.modules.finance.services.support import (
+    load_config,
+    money,
+    post_ledger_entry,
+)
+from app.platform.audit.service import AuditService
 
 
 class CollectionService:
@@ -74,7 +95,96 @@ class CollectionService:
           (+ ``paid_at``), post a ``collection`` inflow ledger entry, audit
           ``finance.payment_recorded`` (house, amount, allocations).
         """
-        raise NotImplementedError("Wave C: record_payment")
+        # Exactly one of months / pay_all selects the scope.
+        if req.pay_all == (req.months is not None):
+            raise ValidationError(
+                "Provide exactly one of 'months' or 'pay_all'."
+            )
+
+        # Row-lock the outstanding dues oldest-first (no concurrent double-settle).
+        outstanding = self._repo.outstanding_dues(
+            society_id, house_id, lock=True
+        )
+        if not outstanding:
+            raise ValidationError("This house has no outstanding dues.")
+
+        if req.pay_all:
+            settled = outstanding
+        else:
+            assert req.months is not None
+            if req.months > len(outstanding):
+                raise ValidationError(
+                    "Requested months exceed the outstanding count.",
+                    details={
+                        "requested": req.months,
+                        "outstanding": len(outstanding),
+                    },
+                )
+            settled = outstanding[: req.months]
+
+        amount = money(sum((d.amount_due for d in settled), Decimal("0")))
+        paid_at = self._paid_at(req.paid_at)
+
+        payment = self._repo.add_payment(
+            Payment(
+                society_id=society_id,
+                house_id=house_id,
+                amount=amount,
+                method=req.method,
+                reference=req.reference,
+                provider="admin_manual",
+                status="recorded",
+                recorded_by=actor_user_id,
+                paid_at=paid_at,
+            )
+        )
+
+        allocations: list[dict] = []
+        for due in settled:
+            self._repo.add_allocation(
+                PaymentAllocation(
+                    society_id=society_id,
+                    payment_id=payment.id,
+                    house_due_id=due.id,
+                    amount_applied=due.amount_due,
+                )
+            )
+            due.status = "paid"
+            due.paid_at = paid_at
+            allocations.append(
+                {
+                    "house_due_id": due.id,
+                    "period": period_key(due.period_year, due.period_month),
+                }
+            )
+        self._session.flush()
+
+        post_ledger_entry(
+            self._repo,
+            society_id=society_id,
+            entry_type="collection",
+            direction="inflow",
+            amount=amount,
+            occurred_on=paid_at.date(),
+            description=f"Collection for house {house_id} ({len(settled)} month(s))",
+            source_type="payment",
+            source_id=payment.id,
+            recorded_by=actor_user_id,
+        )
+
+        AuditService(self._session).record(
+            action="finance.payment_recorded",
+            actor_user_id=actor_user_id,
+            society_id=society_id,
+            entity_type="payment",
+            entity_id=payment.id,
+            after={
+                "house_id": house_id,
+                "amount": str(amount),
+                "allocations": allocations,
+            },
+        )
+        return self._payment_out(payment, settled)
 
     def record_prepaid(
         self,
@@ -94,7 +204,126 @@ class CollectionService:
         ``collection`` inflow; audit ``finance.prepaid_recorded`` (house, months,
         locked rate). Tied to the house.
         """
-        raise NotImplementedError("Wave C: record_prepaid")
+        config = load_config(self._session, society_id)
+        n = req.months_count
+        if n not in config.prepaid_blocks:
+            raise ValidationError(
+                "months_count must be an allowed prepaid block.",
+                details={"allowed": config.prepaid_blocks},
+            )
+
+        # Arrears must be cleared before a prepaid block (spec §4).
+        if self._repo.has_outstanding(society_id, house_id):
+            raise ConflictError("Clear arrears first.")
+
+        # Lock the current rate at purchase time (spec §4: locked rate).
+        rate = self._repo.current_rate(society_id)
+        if rate is None:
+            raise ValidationError(
+                "No maintenance rate is set; cannot lock a prepaid rate."
+            )
+        rate_locked = money(rate.amount)
+
+        # The window is the next N months not yet billed: start at the month
+        # after the latest existing due period (or the current month if none).
+        existing = self._repo.existing_periods(society_id, house_id)
+        if existing:
+            latest = max(existing)
+            first_y, first_m = add_months(latest[0], latest[1], 1)
+        else:
+            first_y, first_m = period_of(utcnow().date())
+
+        months = [add_months(first_y, first_m, i) for i in range(n)]
+        amount = money(rate_locked * n)
+        paid_at = self._paid_at(req.paid_at)
+        due_day = config.maintenance_due_day
+
+        payment = self._repo.add_payment(
+            Payment(
+                society_id=society_id,
+                house_id=house_id,
+                amount=amount,
+                method=req.method,
+                reference=req.reference,
+                provider="admin_manual",
+                status="recorded",
+                recorded_by=actor_user_id,
+                paid_at=paid_at,
+            )
+        )
+
+        first, last = months[0], months[-1]
+        self._repo.add_prepaid_block(
+            PrepaidBlock(
+                society_id=society_id,
+                house_id=house_id,
+                months_count=n,
+                rate_locked=rate_locked,
+                payment_id=payment.id,
+                start_period=period_key(*first),
+                end_period=period_key(*last),
+            )
+        )
+
+        settled: list[HouseDue] = []
+        for (y, m) in months:
+            # Defensive: skip any month that somehow already has a due (shouldn't
+            # happen after the arrears + uncovered-window logic).
+            if (y, m) in existing:
+                continue
+            due = self._repo.add_due(
+                HouseDue(
+                    society_id=society_id,
+                    house_id=house_id,
+                    period_year=y,
+                    period_month=m,
+                    amount_due=rate_locked,
+                    due_date=due_date_for(y, m, due_day),
+                    status="paid",
+                    source="prepaid",
+                    locked_rate=rate_locked,
+                    paid_at=paid_at,
+                )
+            )
+            self._repo.add_allocation(
+                PaymentAllocation(
+                    society_id=society_id,
+                    payment_id=payment.id,
+                    house_due_id=due.id,
+                    amount_applied=rate_locked,
+                )
+            )
+            settled.append(due)
+        self._session.flush()
+
+        post_ledger_entry(
+            self._repo,
+            society_id=society_id,
+            entry_type="collection",
+            direction="inflow",
+            amount=amount,
+            occurred_on=paid_at.date(),
+            description=f"Prepaid block ({n} months) for house {house_id}",
+            source_type="payment",
+            source_id=payment.id,
+            recorded_by=actor_user_id,
+        )
+
+        AuditService(self._session).record(
+            action="finance.prepaid_recorded",
+            actor_user_id=actor_user_id,
+            society_id=society_id,
+            entity_type="payment",
+            entity_id=payment.id,
+            after={
+                "house_id": house_id,
+                "months": n,
+                "rate_locked": str(rate_locked),
+                "start_period": period_key(*first),
+                "end_period": period_key(*last),
+            },
+        )
+        return self._payment_out(payment, settled)
 
     def void_payment(
         self,
@@ -113,4 +342,98 @@ class CollectionService:
         ``finance.payment_voided`` (+ reason). The original + allocations are NOT
         deleted.
         """
-        raise NotImplementedError("Wave C: void_payment")
+        payment = self._repo.get_payment(society_id, payment_id)
+        if payment is None:
+            raise NotFoundError("Payment not found.")
+        if payment.status == "voided":
+            raise ConflictError("Payment is already voided.")
+
+        now = utcnow()
+        payment.status = "voided"
+        payment.voided_by = actor_user_id
+        payment.voided_at = now
+        payment.void_reason = req.reason
+
+        # Re-open every allocated due (batch-load; no N+1). A prepaid-sourced due
+        # is re-opened too — voiding unwinds the whole block, so its months revert
+        # to outstanding, consistent with accrued dues (spec §4 transparency).
+        allocations = self._repo.allocations_for_payment(payment_id)
+        due_ids = [a.house_due_id for a in allocations]
+        dues = self._repo.dues_by_ids(society_id, due_ids)
+        reopened: list[HouseDue] = []
+        for due_id in due_ids:
+            due = dues.get(due_id)
+            if due is None:
+                continue
+            due.status = "outstanding"
+            due.paid_at = None
+            reopened.append(due)
+
+        # Post a reversing entry negating the original collection (both visible).
+        original = self._repo.collection_entry_for_payment(society_id, payment_id)
+        if original is not None:
+            opposite = "outflow" if original.direction == "inflow" else "inflow"
+            post_ledger_entry(
+                self._repo,
+                society_id=society_id,
+                entry_type="reversal",
+                direction=opposite,
+                amount=original.amount,
+                occurred_on=now.date(),
+                description=f"Reversal of voided payment {payment_id}",
+                source_type="payment",
+                source_id=payment_id,
+                recorded_by=actor_user_id,
+                reverses_entry_id=original.id,
+            )
+            original.is_reversed = True
+        self._session.flush()
+
+        AuditService(self._session).record(
+            action="finance.payment_voided",
+            actor_user_id=actor_user_id,
+            society_id=society_id,
+            entity_type="payment",
+            entity_id=payment.id,
+            before={"status": "recorded"},
+            after={
+                "status": "voided",
+                "reason": req.reason,
+                "amount": str(payment.amount),
+                "reopened_due_ids": [d.id for d in reopened],
+            },
+        )
+        return self._payment_out(payment, reopened)
+
+    # --- helpers -----------------------------------------------------------
+
+    @staticmethod
+    def _paid_at(paid_on: object | None) -> datetime:
+        """A timezone-aware datetime for a payment: the request date at UTC
+        midnight, or ``utcnow()`` when none is supplied."""
+        if paid_on is None:
+            return utcnow()
+        return datetime.combine(paid_on, time.min, tzinfo=timezone.utc)
+
+    def _payment_out(
+        self, payment: Payment, dues: list[HouseDue]
+    ) -> PaymentOut:
+        """Shape a ``PaymentOut`` with allocations joined to their dues so each
+        carries its period (year/month)."""
+        due_by_id = {d.id: d for d in dues}
+        allocations = self._repo.allocations_for_payment(payment.id)
+        alloc_out: list[PaymentAllocationOut] = []
+        for a in allocations:
+            due = due_by_id.get(a.house_due_id)
+            alloc_out.append(
+                PaymentAllocationOut(
+                    id=a.id,
+                    house_due_id=a.house_due_id,
+                    amount_applied=a.amount_applied,
+                    period_year=due.period_year if due else None,
+                    period_month=due.period_month if due else None,
+                )
+            )
+        out = PaymentOut.model_validate(payment)
+        out.allocations = alloc_out
+        return out
