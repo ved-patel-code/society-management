@@ -214,6 +214,34 @@ class HouseRepository:
         # Ambiguous (multiple buildings share the number, no building_id) → None.
         return rows[0] if len(rows) == 1 else None
 
+    def current_owned_houses(
+        self, society_id: int, user_id: int
+    ) -> list[House]:
+        """The houses a user CURRENTLY OWNS in a society (Complaints contract §7).
+
+        Owner occupancies only (``party_type='owner'``, ``is_current``), joined to
+        the house so the caller can read the house + derive its display code. Used
+        by Complaints to infer/verify the raiser's house (docs/modules/
+        complaints.md §4). Ordered by house id for a stable "which house?" prompt.
+        """
+        rows = (
+            self._session.execute(
+                select(House)
+                .join(HouseOccupancy, HouseOccupancy.house_id == House.id)
+                .where(
+                    House.society_id == society_id,
+                    HouseOccupancy.society_id == society_id,
+                    HouseOccupancy.user_id == user_id,
+                    HouseOccupancy.party_type == "owner",
+                    HouseOccupancy.is_current.is_(True),
+                )
+                .order_by(House.id)
+            )
+            .scalars()
+            .all()
+        )
+        return list(rows)
+
     def current_owner_user_ids(self, society_id: int) -> set[int]:
         """The society's current owner login ids (Notice Board audience, etc.).
 

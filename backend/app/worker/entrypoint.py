@@ -10,6 +10,7 @@ import logging
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 
+from app.modules.complaints.services.jobs import run_daily_auto_archive
 from app.modules.finance.services.jobs import run_daily_dues_generation
 from app.modules.vault.services.jobs import purge_trash, reconcile_usage
 from app.worker.jobs.cleanup import purge_expired_auth_rows
@@ -56,6 +57,17 @@ def build_scheduler() -> BlockingScheduler:
         hour=2,
         minute=0,
         id="finance_daily_dues_generation",
+        replace_existing=True,
+    )
+    # Complaints auto-archive scan at 01:30 UTC (docs complaints.md §9). Per
+    # society, archives closed complaints older than auto_archive_days
+    # (idempotent — only touches status='closed' rows).
+    scheduler.add_job(
+        run_daily_auto_archive,
+        trigger="cron",
+        hour=1,
+        minute=30,
+        id="complaints_auto_archive",
         replace_existing=True,
     )
     return scheduler

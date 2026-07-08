@@ -125,6 +125,34 @@ class HouseService:
             self._repo.occupancy_by_user_and_house(user_id, house_id) is not None
         )
 
+    def current_owned_houses(
+        self, society_id: int, user_id: int
+    ) -> list[HouseOut]:
+        """Cross-module contract (Complaints): the houses a user CURRENTLY OWNS,
+        with derived display codes (docs/modules/complaints.md §4/§7).
+
+        Used to infer the raiser's house (exactly one) or to verify a named
+        ``house_id`` (several). Batch-loads the buildings for the returned houses
+        in one query (no N+1). Empty list → the caller owns no current house.
+        """
+        houses = self._repo.current_owned_houses(society_id, user_id)
+        building_ids = {h.building_id for h in houses if h.building_id is not None}
+        buildings = self._repo.buildings_by_ids(building_ids)
+        return [
+            self._to_house_out(h, buildings.get(h.building_id)) for h in houses
+        ]
+
+    def house_display_code(
+        self, society_id: int, house_id: int
+    ) -> str | None:
+        """Cross-module contract: a single house's display code for labels
+        (Complaints list/detail — docs/modules/complaints.md §6). None if the house
+        is not in the society."""
+        house = self._repo.get_house(society_id, house_id)
+        if house is None:
+            return None
+        return self._to_house_out(house, self._building_for(house)).display_code
+
     def houses_owing(self, society_id: int):
         """Cross-module contract (Finance): dues-owing houses as
         ``(house_id, first_left_empty_on)`` for status != empty. Empty houses
