@@ -71,7 +71,7 @@ Written to `audit_log` (in-transaction):
 ## 7. Inter-module contracts
 - **Consumes:** House & Occupancy (`status` + `first_left_empty_on` → who owes, from when); Onboarding **house registry** (resolve by number for "enter house number"); foundation `TenantContext`/`AuditService`; worker.
 - **Provides:** `outstanding_dues(house_id)`, `record_payment(...)`, `generate_due_cycle(society)`; **due/overdue signals** for the modular reminder system (Notifications); a **has-dues** check for Onboarding's delete-guard.
-  - **Dues reminders (built):** the recurring reminder is a **rule hosted by the Notifications module**, which consumes `outstanding_dues(house_id)` + the society's `maintenance_due_day` and builds one consolidated `maintenance_due` alert per fire. The **reminder cadence (advance days, interval N) lives in Notifications config, not Finance** — Finance only exposes the dues data. See [notifications.md](notifications.md).
+  - **Dues reminders (Finance seam built; reminder pending Notifications):** Finance exposes `outstanding_dues(house_id)` + `maintenance_due_day` today. The recurring reminder itself is a **rule hosted by the Notifications module** (not yet built), which will consume those and build one consolidated `maintenance_due` alert per fire. The **reminder cadence (advance days, interval N) lives in Notifications config, not Finance** — Finance only exposes the dues data. See [notifications.md](notifications.md).
 - **PaymentProvider interface:** `admin_manual` now; a gateway is a later implementation — no finance-core change.
 
 ## 8. Feature flag / config

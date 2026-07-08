@@ -13,7 +13,7 @@ from decimal import Decimal
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.common.errors import ValidationError
+from app.common.errors import PermissionDeniedError, ValidationError
 from app.common.pagination import PageParams
 from app.core.db import get_session
 from app.core.deps import (
@@ -112,17 +112,46 @@ def preview_rate(
 # ============================ Collection =====================================
 
 
+# Finance "manage" permissions — a caller holding any of these is an admin who may
+# read ANY house's dues. A caller with only finance.read (a resident) is scoped to
+# their own house (docs finance §2: "owners may read their own house's dues").
+_ADMIN_FINANCE_PERMS = frozenset(
+    {
+        "finance.manage_rate",
+        "finance.record_payment",
+        "finance.manage_expenses",
+        "finance.manage_reserve",
+    }
+)
+
+
 @router.get(
     "/houses/{house_id}/dues", response_model=HouseDuesOut, dependencies=_READ
 )
 def house_dues(
     house_id: int,
+    auth: AuthContext = Depends(require_permission("finance.read")),
     tenant: TenantContext = Depends(get_tenant_context),
     session: Session = Depends(get_session),
 ) -> HouseDuesOut:
-    """Outstanding months + total + history for a house (docs §6)."""
+    """Outstanding months + total + history for a house (docs §6).
+
+    Admins (any finance manage-permission) read any house; a read-only resident is
+    restricted to a house they currently occupy (docs finance §2).
+    """
+    society_id = _society_id(tenant)
+    is_admin = bool(auth.permission_keys & _ADMIN_FINANCE_PERMS)
+    if not is_admin:
+        from app.modules.houses.service import HouseService
+
+        if not HouseService(session).is_current_occupant(
+            society_id, auth.user_id, house_id
+        ):
+            raise PermissionDeniedError(
+                "You may only view dues for your own house."
+            )
     return FinanceService(session).collection.get_house_dues(
-        _society_id(tenant), house_id
+        society_id, house_id
     )
 
 

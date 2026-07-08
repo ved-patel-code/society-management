@@ -113,6 +113,18 @@ class HouseService:
         Finance to validate a reserve entry's house link (tenant isolation)."""
         return self._repo.get_house(society_id, house_id) is not None
 
+    def is_current_occupant(
+        self, society_id: int, user_id: int, house_id: int
+    ) -> bool:
+        """Cross-module contract: is this user the current owner/tenant of this
+        house (within the society)? Used by Finance to scope a resident's dues
+        read to their own house (docs finance §2). House must be in the society."""
+        if self._repo.get_house(society_id, house_id) is None:
+            return False
+        return (
+            self._repo.occupancy_by_user_and_house(user_id, house_id) is not None
+        )
+
     def houses_owing(self, society_id: int):
         """Cross-module contract (Finance): dues-owing houses as
         ``(house_id, first_left_empty_on)`` for status != empty. Empty houses
