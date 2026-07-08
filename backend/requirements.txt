@@ -27,3 +27,9 @@ minio==7.2.20
 
 # --- Background worker scheduler ---
 APScheduler==3.11.3
+
+# --- HTML sanitization (rich-text notice bodies) ---
+# nh3 = the Rust "ammonia" HTML-sanitizer binding. Chosen over the deprecated,
+# archived `bleach` (final release 2026-06, no future security patches). nh3 is
+# actively maintained, memory-safe, ~20x faster, no known CVEs (vetted 2026-07-08).
+nh3==0.3.6

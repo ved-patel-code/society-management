@@ -4,7 +4,7 @@ Start here. Read the foundation docs in order, then dive into individual modules
 
 > **All modules are designed; implementation is underway (backend-first).** History of requirements/decisions per module lives in **[../REMAINING-MODULES.md](../REMAINING-MODULES.md)**; the authoritative specs are the per-module docs below. As-built indexes for built modules live in **[implemented/](implemented/)** and build/QA records in **[build-log/](build-log/)**.
 >
-> **Built so far:** Module 0 — Platform Foundation ([implemented/platform-foundation.md](implemented/platform-foundation.md)) · Module 1 — Onboarding ([implemented/onboarding.md](implemented/onboarding.md)) · Module 2 — House & Occupancy ([implemented/house-occupancy.md](implemented/house-occupancy.md)) · Module 3 — Vault ([implemented/vault.md](implemented/vault.md)) · Module 4 — Finance ([implemented/finance.md](implemented/finance.md)) · Module 5 — Complaints ([implemented/complaints.md](implemented/complaints.md)). Remaining modules build one at a time on feature branches, in the order below.
+> **Built so far:** Module 0 — Platform Foundation ([implemented/platform-foundation.md](implemented/platform-foundation.md)) · Module 1 — Onboarding ([implemented/onboarding.md](implemented/onboarding.md)) · Module 2 — House & Occupancy ([implemented/house-occupancy.md](implemented/house-occupancy.md)) · Module 3 — Vault ([implemented/vault.md](implemented/vault.md)) · Module 4 — Finance ([implemented/finance.md](implemented/finance.md)) · Module 5 — Complaints ([implemented/complaints.md](implemented/complaints.md)) · Module 6 — Notice Board ([implemented/notice-board.md](implemented/notice-board.md)). Next: Module 7 — Notifications. Remaining modules build one at a time on feature branches, in the order below.
 
 ## Foundation (read first — stable shared context)
 1. [01 — Project Overview](01-project-overview.md) — what the app is, modules, priorities.
@@ -25,7 +25,7 @@ Written one at a time, before building. Order after the foundation: **Onboarding
 - [modules/vault.md](modules/vault.md) — ✅ designed · 🛠️ **built** ([as-built](implemented/vault.md)). File-manager document storage (MinIO), house-centric folders, Trash, 5 GB default limit, admin-only.
 - [modules/finance.md](modules/finance.md) — ✅ designed · 🛠️ **built** ([as-built](implemented/finance.md)). Effective-dated rate, materialized monthly dues, oldest-first collection + prepaid, computed reserve ledger, full analytics.
 - [modules/complaints.md](modules/complaints.md) — ✅ designed · 🛠️ **built** ([as-built](implemented/complaints.md)). House-scoped complaints; open→in_progress→resolved→closed→archived (worker auto-archive after configurable days); predefined+extendable categories (common-area = a category); status + admin note; ≤2 report + ≤2 proof images in Vault (proof attached at resolve). Ships the in-process event dispatcher (`app/common/events.py`) for Notifications.
-- [modules/notice-board.md](modules/notice-board.md) — ✅ designed. Society-wide broadcast; draft→published, edit (with "edited" marker)/pin/withdraw/optional expiry; rich text + unlimited Vault attachments; admin read receipts; resident-portal landing feed; emits `notice_posted` for Notifications.
+- [modules/notice-board.md](modules/notice-board.md) — ✅ designed · 🛠️ **built** ([as-built](implemented/notice-board.md)). Society-wide broadcast; draft→published, edit (with "edited" marker)/pin/withdraw/optional query-time expiry; rich text (sanitized) + unlimited Vault attachments; admin read receipts (current-owner denominator); resident-portal landing feed; emits `notice_posted` for Notifications (skeleton). `depends_on: houses`; attachment routes also require `vault`.
 - [modules/notifications.md](modules/notifications.md) — ✅ designed. In-app notification + reminder engine (event-driven + scheduled rules); dues cadence advance/due-day/every-N with consolidated total; owners + admin alerts; clear-on-read feed; in-app only in v1 (email/push future).
 
 ## As-built reference (`implemented/`)
@@ -36,3 +36,4 @@ Written during/after building each module — the accurate "what actually exists
 - [implemented/vault.md](implemented/vault.md) — Module 3, COMPLETE (521 tests).
 - [implemented/finance.md](implemented/finance.md) — Module 4, COMPLETE (~146 finance tests; full suite 689).
 - [implemented/complaints.md](implemented/complaints.md) — Module 5, COMPLETE (168 complaints tests; full suite 857).
+- [implemented/notice-board.md](implemented/notice-board.md) — Module 6, COMPLETE (153 notices tests; full suite 1010).
