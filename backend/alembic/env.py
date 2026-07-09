@@ -22,6 +22,7 @@ import app.modules.vault.models  # noqa: F401,E402
 import app.modules.finance.models  # noqa: F401,E402
 import app.modules.complaints.models  # noqa: F401,E402
 import app.modules.notices.models  # noqa: F401,E402
+import app.modules.notifications.models  # noqa: F401,E402
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url)

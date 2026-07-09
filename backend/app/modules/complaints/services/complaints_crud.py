@@ -121,7 +121,8 @@ class ComplaintsCrudService:
                 "raised_by": actor_user_id,
                 "reference": reference,
                 "category_id": req.category_id,
-            }
+            },
+            session=self._session,
         )
         return support.assemble_detail(self._session, self._repo, complaint)
 
@@ -277,7 +278,8 @@ class ComplaintsCrudService:
                 "house_id": complaint.house_id,
                 "raised_by": complaint.raised_by,
                 "reference": complaint.reference,
-            }
+            },
+            session=self._session,
         )
         return support.assemble_detail(self._session, self._repo, complaint)
 
@@ -393,7 +395,9 @@ class ComplaintsCrudService:
         detail = support.assemble_detail(self._session, self._repo, complaint)
         # Clear-on-read (docs §6/§7): drop the caller's pending alert for this
         # complaint (no-op until Notifications subscribes).
-        events.mark_read_for(caller_user_id, "complaint", complaint_id)
+        events.mark_read_for(
+            caller_user_id, "complaint", complaint_id, session=self._session
+        )
         return detail
 
     # --- helpers -----------------------------------------------------------

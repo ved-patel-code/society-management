@@ -103,7 +103,9 @@ def assert_transition_allowed(from_status: str, to_status: str) -> None:
         )
 
 
-def apply_publish(notice: Notice, *, at: datetime | None = None) -> None:
+def apply_publish(
+    notice: Notice, *, at: datetime | None = None, session=None
+) -> None:
     """Publish ``notice`` (draft → published) and emit ``notice_posted`` ONCE.
 
     THE single publish choke-point (docs §4). Guards the transition, stamps
@@ -111,13 +113,20 @@ def apply_publish(notice: Notice, *, at: datetime | None = None) -> None:
     doc-specified payload. Shared by create-with-``publish=true`` and the explicit
     publish endpoint so the stamp + emit never diverge between them.
 
-    Per-actor authorization (the caller holds ``notices.publish``) is the
-    caller's responsibility — this is the write, not the gate.
+    ``session`` (the caller's request session) is threaded to the Notifications
+    subscriber so its fan-out writes commit in THIS transaction — the notice and
+    its notifications are atomic (docs/05 §3). Per-actor authorization (the caller
+    holds ``notices.publish``) is the caller's responsibility — this is the write,
+    not the gate.
     """
     assert_transition_allowed(notice.status, STATUS_PUBLISHED)
     when = at or utcnow()
     notice.published_at = when
     notice.status = STATUS_PUBLISHED
+    # Flush so the notice row (and its id) is visible to the subscriber's fan-out
+    # query within this same transaction.
+    if session is not None:
+        session.flush()
     # Emit ``published_at`` as an ISO-8601 string (JSON-safe) so a future
     # Notifications subscriber can serialize the payload to a queue/worker
     # without special datetime handling — matches this module's audit idiom.
@@ -127,7 +136,8 @@ def apply_publish(notice: Notice, *, at: datetime | None = None) -> None:
             "society_id": notice.society_id,
             "title": notice.title,
             "published_at": when.isoformat(),
-        }
+        },
+        session=session,
     )
 
 

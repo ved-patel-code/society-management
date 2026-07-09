@@ -142,6 +142,30 @@ class RoleRepository:
         ).all()
         return {r[0] for r in rows}
 
+    def user_ids_with_permission(
+        self, society_id: int, permission_key: str
+    ) -> set[int]:
+        """The set of user ids holding ``permission_key`` in a society (docs/05 §3).
+
+        The reverse of :meth:`effective_permission_keys`: resolve "who are the
+        admins" data-driven — a recipient of a ``complaint_new`` alert is whoever
+        currently holds ``complaints.read_all``, via ANY of their roles in the
+        society (no frozen recipient list). ``DISTINCT`` because a user may hold
+        the permission through multiple roles. Joins
+        ``permissions → role_permissions → user_roles`` filtered to the society.
+        """
+        rows = self._session.execute(
+            select(UserRole.user_id)
+            .join(RolePermission, RolePermission.role_id == UserRole.role_id)
+            .join(Permission, Permission.id == RolePermission.permission_id)
+            .where(
+                UserRole.society_id == society_id,
+                Permission.key == permission_key,
+            )
+            .distinct()
+        ).all()
+        return {r[0] for r in rows}
+
     def user_portals(self, user_id: int, society_id: int) -> list[str]:
         """Distinct ``roles.portal`` across the user's roles in the society."""
         rows = self._session.execute(

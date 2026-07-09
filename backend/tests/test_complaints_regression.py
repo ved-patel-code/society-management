@@ -55,6 +55,21 @@ def test_date_to_filter_inclusive_of_end_day(
         auth, r_hdr, category_id=cat, title="today", description="y"
     )
 
+    # ``created_at`` is stamped by the DB (server_default now()) in REAL time,
+    # which the app-level ``freeze_utcnow`` does not control. Pin it to
+    # FROZEN_TODAY so this test asserts the FILTER boundary deterministically on
+    # any calendar day (otherwise it silently depends on the run date matching
+    # FROZEN_TODAY).
+    from datetime import datetime, timezone
+
+    from app.modules.complaints.models import Complaint
+
+    row = db.query(Complaint).filter(Complaint.id == created["id"]).one()
+    row.created_at = datetime.combine(
+        FROZEN_TODAY, datetime.min.time(), tzinfo=timezone.utc
+    )
+    db.commit()
+
     resp = auth.client.get(
         "/complaints", headers=hdr, params={"date_to": FROZEN_TODAY.isoformat()}
     )

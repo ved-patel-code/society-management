@@ -12,6 +12,11 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 
 from app.modules.complaints.services.jobs import run_daily_auto_archive
 from app.modules.finance.services.jobs import run_daily_dues_generation
+from app.modules.notifications.api import subscribe_handlers as subscribe_notifications
+from app.modules.notifications.services.jobs import (
+    run_daily_dues_reminders,
+    run_daily_read_purge,
+)
 from app.modules.vault.services.jobs import purge_trash, reconcile_usage
 from app.worker.jobs.cleanup import purge_expired_auth_rows
 
@@ -70,11 +75,35 @@ def build_scheduler() -> BlockingScheduler:
         id="complaints_auto_archive",
         replace_existing=True,
     )
+    # Notifications dues-reminder scan at 06:00 UTC (docs notifications.md §9).
+    # Per society (notifications + finance enabled), one consolidated
+    # maintenance_due reminder per owing house on its cadence day (idempotent).
+    scheduler.add_job(
+        run_daily_dues_reminders,
+        trigger="cron",
+        hour=6,
+        minute=0,
+        id="notifications_dues_reminders",
+        replace_existing=True,
+    )
+    # Notifications read-purge at 04:30 UTC (docs notifications.md §9). Per
+    # society, deletes read notifications older than read_retention_days.
+    scheduler.add_job(
+        run_daily_read_purge,
+        trigger="cron",
+        hour=4,
+        minute=30,
+        id="notifications_read_purge",
+        replace_existing=True,
+    )
     return scheduler
 
 
 def main() -> None:
     logger.info("Worker starting; scheduling foundation jobs.")
+    # The worker process has its own event bus — register the Notifications
+    # handlers so any event emitted during a job produces notifications too.
+    subscribe_notifications()
     scheduler = build_scheduler()
     try:
         scheduler.start()

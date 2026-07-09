@@ -26,21 +26,44 @@ EVENT_POSTED = "notice_posted"
 EVENT_MARK_READ = "notice.mark_read"
 
 
-def emit_posted(payload: dict[str, Any]) -> None:
+def emit_posted(payload: dict[str, Any], *, session=None) -> None:
     """Emit ``notice_posted`` on publish (payload: notice_id, society_id, title,
     published_at). Notifications fans out a ``notice`` alert to all current
-    owners; no-op until it subscribes."""
-    _bus.emit(EVENT_POSTED, payload)
+    owners.
+
+    ``session`` (the emitter's request session) is threaded on the payload so the
+    Notifications handler writes the fan-out in THIS transaction — the notice and
+    its notifications commit atomically (docs/05 §3, notifications §4.1).
+    Optional/back-compat: with no subscriber it's ignored."""
+    _bus.emit(EVENT_POSTED, _with_session(payload, session))
 
 
-def mark_read_for(user_id: int, entity_type: str, entity_id: int) -> None:
+def mark_read_for(
+    user_id: int, entity_type: str, entity_id: int, *, session=None
+) -> None:
     """Clear-on-read hook (docs/05 §3): called when a user opens a notice.
 
     Emits a ``notice.mark_read`` event carrying the (user, entity) so
-    Notifications can drop that user's pending ``notice`` alert for the notice.
-    No-op until Notifications subscribes.
+    Notifications can drop that user's pending ``notice`` alert. ``session``
+    threaded so the clear happens in the opener's request transaction.
     """
     _bus.emit(
         EVENT_MARK_READ,
-        {"user_id": user_id, "entity_type": entity_type, "entity_id": entity_id},
+        _with_session(
+            {
+                "user_id": user_id,
+                "entity_type": entity_type,
+                "entity_id": entity_id,
+            },
+            session,
+        ),
     )
+
+
+def _with_session(payload: dict[str, Any], session) -> dict[str, Any]:
+    """Attach the emitter's request session to the event payload (subscriber uses
+    it to write in the emitter's transaction). Returns the payload unchanged when
+    no session is given (skeleton/back-compat)."""
+    if session is not None:
+        return {**payload, "session": session}
+    return payload
