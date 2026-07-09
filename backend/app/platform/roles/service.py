@@ -164,6 +164,18 @@ class RoleService:
             return set()
         return self._repo.effective_permission_keys(user_id, society_id)
 
+    def user_ids_with_permission(
+        self, society_id: int, permission_key: str
+    ) -> set[int]:
+        """Cross-module contract (docs/05 §3): the user ids holding
+        ``permission_key`` in a society.
+
+        Data-driven recipient resolution for Notifications — "admins" for a
+        complaint alert = whoever currently holds ``complaints.read_all`` (via any
+        role), never a frozen list. Returns an empty set when no one qualifies.
+        """
+        return self._repo.user_ids_with_permission(society_id, permission_key)
+
     def available_portals(
         self, user_id: int, society_id: int | None
     ) -> list[str]:

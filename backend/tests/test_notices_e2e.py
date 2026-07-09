@@ -158,7 +158,11 @@ def test_e2e_mark_read_event_on_open(auth, db, society, admin_user, superadmin):
         resp = auth.client.get(f"/notices/{nid}", headers=r_hdr)
     assert resp.status_code == 200, resp.text
     assert len(marked) == 1
-    assert marked[0][1] == {
+    # The payload also carries the emitter's ``session`` (threaded for atomic
+    # handler writes); assert the data keys, ignoring that transport key.
+    assert {
+        k: v for k, v in marked[0][1].items() if k != "session"
+    } == {
         "user_id": reader.id,
         "entity_type": "notice",
         "entity_id": nid,

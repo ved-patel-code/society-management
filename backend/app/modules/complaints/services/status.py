@@ -110,7 +110,8 @@ class StatusService:
                 "to_status": req.to_status,
                 "note": req.note,
                 "reference": complaint.reference,
-            }
+            },
+            session=self._session,
         )
         return support.assemble_detail(self._session, self._repo, complaint)
 
@@ -232,7 +233,8 @@ class StatusService:
                 "to_status": STATUS_RESOLVED,
                 "note": note,
                 "reference": complaint.reference,
-            }
+            },
+            session=self._session,
         )
         return support.assemble_detail(self._session, self._repo, complaint)
 

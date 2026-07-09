@@ -77,7 +77,7 @@ class LifecycleService:
 
         # The single publish write: guard + stamp published_at + set status +
         # emit notice_posted ONCE. Never re-stamped or re-emitted here.
-        support.apply_publish(notice)
+        support.apply_publish(notice, session=self._session)
         self._session.flush()
 
         AuditService(self._session).record(

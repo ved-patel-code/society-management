@@ -92,7 +92,9 @@ class NoticesCrudService:
         # Publish-on-create: the single publish write (stamp + emit). Runs only
         # after the flush above so ``notice.id`` is in the emitted payload.
         if req.publish:
-            support.apply_publish(notice, at=support.utcnow())
+            support.apply_publish(
+                notice, at=support.utcnow(), session=self._session
+            )
             self._session.flush()
 
         AuditService(self._session).record(
@@ -356,7 +358,9 @@ class NoticesCrudService:
         self._repo.mark_read(
             society_id, notice.id, caller_user_id, at=support.utcnow()
         )
-        events.mark_read_for(caller_user_id, "notice", notice.id)
+        events.mark_read_for(
+            caller_user_id, "notice", notice.id, session=self._session
+        )
 
         # They have now read it — reflect that in the returned detail.
         return support.assemble_detail(

@@ -423,7 +423,12 @@ def test_get_detail_marks_read_and_emits(auth, db, society, admin_user, superadm
     # Clear-on-read fired for this (user, notice).
     assert len(marked) == 1
     _name, payload = marked[0]
-    assert payload == {
+    # The payload also carries the emitter's ``session`` (threaded so the
+    # Notifications handler writes in the emitter's transaction — atomic). Assert
+    # the data keys, ignoring that transport key.
+    assert {
+        k: v for k, v in payload.items() if k != "session"
+    } == {
         "user_id": reader.id,
         "entity_type": "notice",
         "entity_id": nid,

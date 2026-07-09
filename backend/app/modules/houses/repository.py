@@ -33,6 +33,17 @@ class HouseRepository:
             )
         ).scalar_one_or_none()
 
+    def society_id_for_house(self, house_id: int) -> int | None:
+        """The society a house belongs to (houses are globally unique by id).
+
+        Cross-module helper for Notifications: a ``complaint.*`` event payload
+        carries ``house_id`` but not ``society_id`` (complaints are house-scoped),
+        so the handler resolves the society from the house. Returns None if the
+        house doesn't exist (defensive)."""
+        return self._session.execute(
+            select(House.society_id).where(House.id == house_id)
+        ).scalar_one_or_none()
+
     def list_houses(
         self,
         society_id: int,
@@ -256,3 +267,48 @@ class HouseRepository:
             )
         ).all()
         return {r[0] for r in rows}
+
+    def owner_user_ids_for_house(
+        self, society_id: int, house_id: int
+    ) -> set[int]:
+        """The current owner login ids for ONE house (Notifications dues rule).
+
+        Only current owner occupancies with a linked ``user_id``. Used to target
+        a maintenance-due reminder at the owners of an owing house.
+        """
+        rows = self._session.execute(
+            select(HouseOccupancy.user_id).where(
+                HouseOccupancy.society_id == society_id,
+                HouseOccupancy.house_id == house_id,
+                HouseOccupancy.party_type == "owner",
+                HouseOccupancy.is_current.is_(True),
+                HouseOccupancy.user_id.is_not(None),
+            )
+        ).all()
+        return {r[0] for r in rows}
+
+    def owner_user_ids_by_house(
+        self, society_id: int, house_ids: list[int]
+    ) -> dict[int, set[int]]:
+        """Batched: current owner login ids per house, for many houses at once.
+
+        ONE query keyed by a list of house ids (no N+1 — the dues worker resolves
+        owners for every owing house in a single round trip). Houses with no
+        linked owner simply don't appear in the result (the caller treats a
+        missing/empty entry as "no reachable owner").
+        """
+        if not house_ids:
+            return {}
+        rows = self._session.execute(
+            select(HouseOccupancy.house_id, HouseOccupancy.user_id).where(
+                HouseOccupancy.society_id == society_id,
+                HouseOccupancy.house_id.in_(house_ids),
+                HouseOccupancy.party_type == "owner",
+                HouseOccupancy.is_current.is_(True),
+                HouseOccupancy.user_id.is_not(None),
+            )
+        ).all()
+        out: dict[int, set[int]] = {}
+        for house_id, user_id in rows:
+            out.setdefault(house_id, set()).add(user_id)
+        return out

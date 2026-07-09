@@ -29,6 +29,9 @@ from app.modules.complaints.router import router as complaints_router
 from app.modules.complaints.spec import register_complaints
 from app.modules.notices.router import router as notices_router
 from app.modules.notices.spec import register_notices
+from app.modules.notifications.api import subscribe_handlers as subscribe_notifications
+from app.modules.notifications.router import router as notifications_router
+from app.modules.notifications.spec import register_notifications
 from app.platform.auth.router import router as auth_router
 from app.platform.bootstrap import register_foundation
 from app.platform.roles.router import router as roles_router
@@ -70,6 +73,12 @@ def create_app() -> FastAPI:
     register_finance()
     register_complaints()
     register_notices()
+    register_notifications()
+
+    # Wire the Notifications event handlers onto the in-process bus so the
+    # already-emitted complaint/notice events produce real notifications
+    # (skeleton-then-wire; idempotent — safe if called again).
+    subscribe_notifications()
 
     app = FastAPI(
         title="Society Management API",
@@ -102,6 +111,7 @@ def create_app() -> FastAPI:
     app.include_router(finance_router)
     app.include_router(complaints_router)
     app.include_router(notices_router)
+    app.include_router(notifications_router)
 
     @app.get("/health", tags=["health"])
     async def health() -> dict[str, str]:

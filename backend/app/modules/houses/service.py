@@ -108,6 +108,27 @@ class HouseService:
         """Cross-module contract: current owner login ids (docs §7)."""
         return self._repo.current_owner_user_ids(society_id)
 
+    def society_id_for_house(self, house_id: int) -> int | None:
+        """Cross-module contract (Notifications): the society a house belongs to.
+
+        A ``complaint.*`` event carries only ``house_id``; the handler resolves
+        the society from it. None if the house doesn't exist."""
+        return self._repo.society_id_for_house(house_id)
+
+    def owner_user_ids_for_house(
+        self, society_id: int, house_id: int
+    ) -> set[int]:
+        """Cross-module contract (Notifications): the current owner login ids for
+        one house — the recipients of that house's maintenance-due reminder."""
+        return self._repo.owner_user_ids_for_house(society_id, house_id)
+
+    def owner_user_ids_by_house(
+        self, society_id: int, house_ids: list[int]
+    ) -> dict[int, set[int]]:
+        """Cross-module contract (Notifications): batched current owner login ids
+        per house (no N+1 for the dues worker's per-house fan-out)."""
+        return self._repo.owner_user_ids_by_house(society_id, house_ids)
+
     def house_exists(self, society_id: int, house_id: int) -> bool:
         """Cross-module contract: does this house belong to the society? Used by
         Finance to validate a reserve entry's house link (tenant isolation)."""
