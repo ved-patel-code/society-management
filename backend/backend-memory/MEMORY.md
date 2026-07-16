@@ -1,0 +1,10 @@
+- [Tech Stack](tech-stack.md) — Next.js + FastAPI + Postgres + MinIO + Docker, backend-first
+- [Modularity Model](modularity-model.md) — per-society feature flags, data-driven roles, cross-module skeleton-then-wire
+- [Docs Structure](docs-structure.md) — where design docs live (d:\society\docs\) and module design order
+- [Dual-role & Portals](dual-role-portals.md) — one account = admin + resident (union perms); view-only portal chooser at login
+- [Implementation Workflow](implementation-workflow.md) — backend build order, lead-core-then-agent-waves, QA gates, git/PR, impl decisions
+- [Test Infra](test-infra.md) — reusable test harness: isolated society_test DB, truncate+reseed, fixtures, run-tests.sh (used by every module)
+- [Onboarding Module](onboarding-module.md) — Module 1 BUILT (PR #3); default-perms-on-enable pattern, house registry, deferred delete guard, test-pipeline fix
+- [Model Assignment Workflow](workflow_model_assignment.md) — new module builds: docs check → explore (sonnet) → write/tests (opus low) → review (opus medium)
+- [Complaints Module](complaints-module.md) — Module 5 BUILT (feat/complaints); house-scoped complaints + status workflow + Vault images; NEW in-process event dispatcher (app/common/events.py) for Notifications; proof-at-resolve; async-await + orphan-connection gotchas
+- [Notice Board Module](notice-board-module.md) — Module 6 BUILT (feat/notice-board); society-wide broadcast, draft→published→withdrawn, query-time expiry, Vault attachments, sanitized rich text+title (new nh3 dep), current-owner read receipts, notice_posted skeleton

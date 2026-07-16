@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 
 import jwt
 from fastapi import Depends, Request
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer, OAuth2PasswordBearer
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -42,6 +42,11 @@ from app.platform.models import (
 
 # auto_error=False so we raise our own typed AuthenticationError (consistent shape).
 _bearer = HTTPBearer(auto_error=False)
+
+# Registered ONLY so Swagger's "Authorize" dialog offers an email/password form
+# (posting to /auth/token) instead of a bare token box. Never used as a FastAPI
+# dependency — request auth is always enforced via `_bearer` above.
+_oauth2_swagger_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token", auto_error=False)
 
 # The one endpoint reachable while password_state == "must_change".
 _MUST_CHANGE_ALLOWED_PATHS = frozenset({"/auth/change-password"})
@@ -91,6 +96,10 @@ def _effective_permission_keys(
 def get_auth_context(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    # Unused: only pulled in so this scheme appears in the OpenAPI doc and
+    # Swagger's Authorize dialog shows an email/password form alongside the
+    # bearer-token box. Actual auth is decided from `credentials` above.
+    _oauth2_token: str | None = Depends(_oauth2_swagger_scheme),
     session: Session = Depends(get_session),
 ) -> AuthContext:
     """Decode the bearer token, load the user, and build the auth context.

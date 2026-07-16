@@ -1,0 +1,1852 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Society Manager — Frontend Mockup</title>
+<style>
+:root{
+  --bg:#f4f6f9; --panel:#ffffff; --border:#e3e7ee; --text:#1b2430; --muted:#6b7688;
+  --brand:#3457d5; --brand-dark:#233b9e; --brand-light:#eaefff;
+  --ok:#1f9d55; --ok-bg:#e7f8ee; --warn:#b8860b; --warn-bg:#fff6df;
+  --danger:#d13b3b; --danger-bg:#fdeaea; --info:#3457d5; --info-bg:#eaefff;
+  --radius:10px; --shadow:0 1px 3px rgba(20,30,60,.06), 0 1px 2px rgba(20,30,60,.04);
+}
+*{box-sizing:border-box;}
+html,body{height:100%;}
+body{
+  margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  background:var(--bg); color:var(--text); font-size:14px; line-height:1.5;
+}
+a{color:var(--brand); text-decoration:none;}
+button{font-family:inherit; cursor:pointer;}
+h1,h2,h3,h4{margin:0 0 4px 0; font-weight:600;}
+p{margin:0 0 8px 0;}
+::-webkit-scrollbar{width:10px; height:10px;}
+::-webkit-scrollbar-thumb{background:#cfd6e2; border-radius:6px;}
+
+/* ---------- Login ---------- */
+.login-screen{min-height:100vh; display:flex; align-items:center; justify-content:center; background:linear-gradient(160deg,#3457d5,#1b2f8f);}
+.login-card{width:380px; background:var(--panel); border-radius:16px; padding:36px 32px; box-shadow:0 20px 60px rgba(0,0,0,.25);}
+.login-logo{width:44px;height:44px;border-radius:12px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;margin-bottom:16px;}
+.login-card h1{font-size:20px;}
+.login-card .sub{color:var(--muted); margin-bottom:22px; font-size:13px;}
+.field{margin-bottom:14px;}
+.field label{display:block; font-size:12px; font-weight:600; color:var(--muted); margin-bottom:5px; text-transform:uppercase; letter-spacing:.03em;}
+.field input,.field select,.field textarea{
+  width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:8px;
+  font-size:14px; background:#fbfcfe; color:var(--text); font-family:inherit;
+}
+.field input:focus,.field select:focus,.field textarea:focus{outline:2px solid var(--brand-light); border-color:var(--brand);}
+.btn{
+  display:inline-flex; align-items:center; gap:6px; justify-content:center;
+  padding:9px 16px; border-radius:8px; border:1px solid transparent; font-size:13px; font-weight:600;
+  background:var(--brand); color:#fff; transition:background .15s;
+}
+.btn:hover{background:var(--brand-dark);}
+.btn.block{width:100%;}
+.btn.secondary{background:#fff; color:var(--text); border-color:var(--border);}
+.btn.secondary:hover{background:#f2f4f8;}
+.btn.danger{background:var(--danger);}
+.btn.danger:hover{background:#b32d2d;}
+.btn.ghost{background:transparent; color:var(--brand); border:none; padding:6px 8px;}
+.btn.ghost:hover{background:var(--brand-light);}
+.btn.sm{padding:5px 10px; font-size:12px;}
+.btn:disabled{opacity:.5; cursor:not-allowed;}
+.error-box{background:var(--danger-bg); color:var(--danger); padding:9px 12px; border-radius:8px; font-size:12.5px; margin-bottom:14px;}
+.hint-users{margin-top:18px; padding-top:16px; border-top:1px solid var(--border); font-size:12px; color:var(--muted);}
+.hint-users code{background:#f2f4f8; padding:1px 5px; border-radius:4px;}
+
+/* ---------- Portal chooser ---------- */
+.portal-screen{min-height:100vh; display:flex; align-items:center; justify-content:center; background:var(--bg);}
+.portal-card{width:420px; background:var(--panel); border-radius:16px; padding:32px; box-shadow:var(--shadow); text-align:center;}
+.portal-options{display:flex; gap:12px; margin-top:20px;}
+.portal-opt{
+  flex:1; border:1.5px solid var(--border); border-radius:12px; padding:22px 14px; background:#fff;
+}
+.portal-opt:hover{border-color:var(--brand); background:var(--brand-light);}
+.portal-opt .ic{font-size:26px; margin-bottom:8px;}
+.portal-opt .name{font-weight:700; text-transform:capitalize;}
+.portal-opt .desc{font-size:11.5px; color:var(--muted); margin-top:4px;}
+
+/* ---------- App shell ---------- */
+.shell{display:flex; min-height:100vh;}
+.sidebar{
+  width:230px; flex-shrink:0; background:#151b30; color:#c6cbe0; display:flex; flex-direction:column;
+  padding:18px 12px;
+}
+.sb-brand{display:flex; align-items:center; gap:10px; padding:6px 8px 20px 8px;}
+.sb-brand .logo{width:32px;height:32px;border-radius:8px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;}
+.sb-brand .name{color:#fff; font-weight:700; font-size:14px;}
+.sb-brand .portal-tag{font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:#8891b5;}
+.nav-group-label{font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:#5c6488; margin:14px 10px 6px;}
+.nav-item{
+  display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:8px; color:#c6cbe0;
+  font-size:13.5px; font-weight:500; margin-bottom:2px; cursor:pointer; border:none; background:transparent; width:100%; text-align:left;
+}
+.nav-item .ic{font-size:15px; width:18px; text-align:center;}
+.nav-item:hover{background:#20284a; color:#fff;}
+.nav-item.active{background:var(--brand); color:#fff;}
+.sb-footer{margin-top:auto; padding-top:14px; border-top:1px solid #262e4d;}
+.sb-user{display:flex; align-items:center; gap:9px; padding:8px; border-radius:8px;}
+.sb-user .avatar{width:30px;height:30px;border-radius:50%;background:#3a4270;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;}
+.sb-user .who{overflow:hidden;}
+.sb-user .who .n{color:#fff; font-size:12.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.sb-user .who .r{font-size:11px; color:#8891b5;}
+.sb-actions{display:flex; gap:6px; margin-top:8px;}
+.sb-actions button{flex:1; font-size:11px; padding:6px; border-radius:6px; border:1px solid #2c355a; background:#1c2340; color:#c6cbe0;}
+.sb-actions button:hover{background:#262f52; color:#fff;}
+
+.main{flex:1; display:flex; flex-direction:column; min-width:0;}
+.topbar{
+  height:58px; background:var(--panel); border-bottom:1px solid var(--border); display:flex; align-items:center;
+  justify-content:space-between; padding:0 22px; flex-shrink:0;
+}
+.topbar .title{font-size:16px; font-weight:700;}
+.topbar .crumbs{font-size:12px; color:var(--muted); margin-top:1px;}
+.topbar-right{display:flex; align-items:center; gap:14px;}
+.bell-wrap{position:relative; cursor:pointer;}
+.bell{font-size:19px; padding:8px; border-radius:8px;}
+.bell:hover{background:#f2f4f8;}
+.badge{
+  position:absolute; top:2px; right:2px; background:var(--danger); color:#fff; font-size:10px; font-weight:700;
+  min-width:16px; height:16px; border-radius:8px; display:flex; align-items:center; justify-content:center; padding:0 3px;
+}
+.content{padding:22px 26px; overflow-y:auto; flex:1;}
+
+/* ---------- Generic components ---------- */
+.grid{display:grid; gap:16px;}
+.stat-row{display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin-bottom:20px;}
+.stat-card{background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:16px 18px; box-shadow:var(--shadow);}
+.stat-card .label{font-size:11.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; margin-bottom:6px;}
+.stat-card .value{font-size:24px; font-weight:700;}
+.stat-card .sub{font-size:11.5px; color:var(--muted); margin-top:4px;}
+
+.panel{background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); margin-bottom:18px;}
+.panel-head{display:flex; align-items:center; justify-content:space-between; padding:15px 18px; border-bottom:1px solid var(--border); gap:10px; flex-wrap:wrap;}
+.panel-head h3{font-size:14.5px;}
+.panel-head .desc{font-size:12px; color:var(--muted); margin-top:2px;}
+.panel-body{padding:16px 18px;}
+.panel-body.pad0{padding:0;}
+
+table{width:100%; border-collapse:collapse; font-size:13px;}
+th{text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.03em; color:var(--muted); padding:10px 14px; border-bottom:1px solid var(--border); background:#fafbfd;}
+td{padding:11px 14px; border-bottom:1px solid #eef1f6; vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr.clickable:hover{background:#f7f9fc; cursor:pointer;}
+.empty-row td{text-align:center; color:var(--muted); padding:26px; font-size:13px;}
+
+.pill{display:inline-flex; align-items:center; gap:4px; padding:3px 9px; border-radius:99px; font-size:11px; font-weight:700; text-transform:capitalize; white-space:nowrap;}
+.pill.ok{background:var(--ok-bg); color:var(--ok);}
+.pill.warn{background:var(--warn-bg); color:var(--warn);}
+.pill.danger{background:var(--danger-bg); color:var(--danger);}
+.pill.info{background:var(--info-bg); color:var(--info);}
+.pill.muted{background:#eef0f4; color:var(--muted);}
+
+.toolbar{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+.toolbar select,.toolbar input{padding:7px 10px; border:1px solid var(--border); border-radius:7px; font-size:12.5px; background:#fff;}
+.tabs{display:flex; gap:2px; border-bottom:1px solid var(--border); margin-bottom:16px;}
+.tab{padding:9px 14px; font-size:13px; font-weight:600; color:var(--muted); border:none; background:none; border-bottom:2px solid transparent; margin-bottom:-1px;}
+.tab.active{color:var(--brand); border-bottom-color:var(--brand);}
+.tab:hover{color:var(--text);}
+
+.modal-overlay{position:fixed; inset:0; background:rgba(15,20,35,.5); display:flex; align-items:center; justify-content:center; z-index:100; padding:20px;}
+.modal{background:#fff; border-radius:14px; width:480px; max-width:100%; max-height:90vh; overflow-y:auto; box-shadow:0 25px 70px rgba(0,0,0,.3);}
+.modal-head{display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--border);}
+.modal-head h3{font-size:15px;}
+.modal-head button{background:none; border:none; font-size:18px; color:var(--muted); padding:4px;}
+.modal-body{padding:18px 20px;}
+.modal-foot{padding:14px 20px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:8px;}
+
+.timeline{list-style:none; margin:0; padding:0; border-left:2px solid var(--border); margin-left:6px;}
+.timeline li{position:relative; padding:0 0 16px 18px;}
+.timeline li:before{content:""; position:absolute; left:-6px; top:3px; width:10px; height:10px; border-radius:50%; background:var(--brand);}
+.timeline li:last-child{padding-bottom:0;}
+.timeline .t-status{font-weight:700; font-size:12.5px; text-transform:capitalize;}
+.timeline .t-note{font-size:12.5px; color:var(--muted); margin-top:2px;}
+.timeline .t-time{font-size:11px; color:#a7aec2; margin-top:2px;}
+
+.notif-item{display:flex; gap:12px; padding:13px 16px; border-bottom:1px solid #eef1f6;}
+.notif-item:last-child{border-bottom:none;}
+.notif-ic{width:34px; height:34px; border-radius:9px; background:var(--brand-light); color:var(--brand); display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0;}
+.notif-body{flex:1; min-width:0;}
+.notif-body .n-title{font-weight:700; font-size:13px;}
+.notif-body .n-text{font-size:12.5px; color:var(--muted); margin-top:2px;}
+.notif-body .n-time{font-size:11px; color:#a7aec2; margin-top:4px;}
+
+.empty-state{text-align:center; padding:50px 20px; color:var(--muted);}
+.empty-state .ic{font-size:34px; margin-bottom:10px;}
+.empty-state h4{color:var(--text); margin-bottom:4px;}
+
+.notice-body-render p{margin:0 0 10px;}
+.notice-body-render ul,.notice-body-render ol{margin:0 0 10px 18px;}
+
+.rich-toolbar{display:flex; gap:4px; margin-bottom:6px; flex-wrap:wrap;}
+.rich-toolbar button{padding:5px 9px; font-size:12px; border:1px solid var(--border); background:#fff; border-radius:6px;}
+.rich-toolbar button:hover{background:#f2f4f8;}
+[contenteditable]{min-height:110px; border:1px solid var(--border); border-radius:8px; padding:10px 12px; background:#fbfcfe; font-size:13.5px;}
+[contenteditable]:focus{outline:2px solid var(--brand-light); border-color:var(--brand);}
+
+.checklist{display:flex; align-items:center; gap:8px; font-size:13px; margin-bottom:8px;}
+.field-row{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+.helptext{font-size:11.5px; color:var(--muted); margin-top:4px;}
+.badge-mod{font-size:10px; padding:2px 7px; border-radius:6px; background:#eef0f4; color:var(--muted); font-weight:700;}
+.mock-tag{font-size:10px; color:#9aa2b8; font-family:ui-monospace,Consolas,monospace; margin-left:6px;}
+.step-row{display:flex; align-items:center; gap:8px; margin-bottom:18px;}
+.step{display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--muted);}
+.step .dot{width:22px; height:22px; border-radius:50%; background:#eef0f4; color:var(--muted); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700;}
+.step.active .dot{background:var(--brand); color:#fff;}
+.step.done .dot{background:var(--ok); color:#fff;}
+.step.active{color:var(--text); font-weight:700;}
+.step-sep{width:24px; height:1px; background:var(--border);}
+.file-chip{display:inline-flex; align-items:center; gap:6px; background:#eef0f4; padding:4px 10px; border-radius:7px; font-size:12px; margin:2px 4px 2px 0;}
+.file-chip button{background:none;border:none;color:var(--muted);font-size:13px;padding:0;}
+.bar-row{display:flex; align-items:center; gap:10px; margin-bottom:8px; font-size:12.5px;}
+.bar-row .lbl{width:90px; flex-shrink:0; color:var(--muted);}
+.bar-track{flex:1; height:8px; background:#eef0f4; border-radius:5px; overflow:hidden;}
+.bar-fill{height:100%; background:var(--brand); border-radius:5px;}
+.bar-row .val{width:70px; text-align:right; font-weight:600;}
+.toast{position:fixed; bottom:22px; right:22px; background:#1b2430; color:#fff; padding:11px 18px; border-radius:9px; font-size:13px; box-shadow:0 10px 30px rgba(0,0,0,.25); z-index:200;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+/* =========================================================================
+   SOCIETY MANAGER — FRONTEND MOCKUP
+   Single-file HTML/CSS/JS prototype. No real backend — a `mockApi` object
+   simulates request/response shapes exactly as documented in docs/api/*.md
+   (auth.md, onboarding.md, house-occupancy.md, finance.md, complaints.md,
+   notice-board.md, notifications.md), so the UI behaves the way the real
+   FastAPI backend would (module gating, permission gating, response shapes,
+   error envelopes) without any network calls.
+   ========================================================================= */
+
+/* =========================================================================
+   1. MOCK DATA (DB) — fixture data matching the docs' example payloads
+   ========================================================================= */
+let DB = null;
+
+function seedDB(){
+  DB = {
+    society: { id: 7, name: "Sunrise Residency", status: "active", onboarding_required: false },
+
+    users: [
+      {
+        id: 15, email: "vikram.shah@example.com", full_name: "Vikram Shah", phone: "+91-9123456789",
+        password: "demo123",
+        available_portals: ["admin","resident"],
+        modulesByPortal: {
+          admin: ["dashboard","onboarding","houses","finance","complaints","notices","notifications"],
+          resident: ["notices","complaints","finance","notifications","myhouse"]
+        },
+        permsByPortal: {
+          admin: ["onboarding.manage","onboarding.read","houses.read","houses.update_status","houses.manage_occupancy",
+                  "finance.read","finance.read_all","finance.manage_rate","finance.record_payment","finance.manage_expenses","finance.manage_reserve",
+                  "complaints.read_all","complaints.update_status","complaints.manage_categories","complaints.configure",
+                  "notices.publish","notices.read","notices.read_receipts",
+                  "notifications.read","notifications.configure"],
+          resident: ["finance.read","complaints.create","complaints.read","notices.read","notifications.read"]
+        },
+        landingByPortal: { admin: "dashboard", resident: "notices" },
+        houseId: 104 // vikram owns this house as resident
+      },
+      {
+        id: 42, email: "priya.sharma@example.com", full_name: "Priya Sharma", phone: "+91-9876543210",
+        password: "demo123",
+        available_portals: ["resident"],
+        modulesByPortal: { resident: ["notices","complaints","finance","notifications","myhouse"] },
+        permsByPortal: { resident: ["finance.read","complaints.create","complaints.read","notices.read","notifications.read"] },
+        landingByPortal: { resident: "notices" },
+        houseId: 103
+      }
+    ],
+
+    buildings: [
+      { id: 3, name: "Wing A", display_order: 1 },
+      { id: 4, name: "Wing B", display_order: 2 }
+    ],
+
+    houses: [
+      { id: 101, building_id: 3, number: "G01", display_code: "Wing A-G01", status: "empty", first_left_empty_on: null },
+      { id: 102, building_id: 3, number: "G02", display_code: "Wing A-G02", status: "to_let", first_left_empty_on: "2026-02-01" },
+      { id: 103, building_id: 3, number: "201", display_code: "Wing A-201", status: "owned", first_left_empty_on: "2026-01-15" },
+      { id: 104, building_id: 3, number: "202", display_code: "Wing A-202", status: "owned", first_left_empty_on: "2025-11-01" },
+      { id: 105, building_id: 4, number: "101", display_code: "Wing B-101", status: "rented", first_left_empty_on: "2025-08-01" },
+      { id: 106, building_id: 4, number: "102", display_code: "Wing B-102", status: "for_sale", first_left_empty_on: "2025-06-01" }
+    ],
+
+    occupancies: [
+      { id: 1, house_id: 102, party_type: "owner", user_id: null, full_name: "Anita Rao", email: "anita.rao@example.com", contact_number: "+91-9000011111", persons_living: null, id_proof_type: null, is_current: true, valid_from: "2026-02-01" },
+      { id: 2, house_id: 103, party_type: "owner", user_id: 42, full_name: "Priya Sharma", email: "priya.sharma@example.com", contact_number: "+91-9876543210", persons_living: 3, id_proof_type: "Aadhaar", is_current: true, valid_from: "2026-01-15" },
+      { id: 3, house_id: 104, party_type: "owner", user_id: 15, full_name: "Vikram Shah", email: "vikram.shah@example.com", contact_number: "+91-9123456789", persons_living: 4, id_proof_type: "Passport", is_current: true, valid_from: "2025-11-01" },
+      { id: 4, house_id: 105, party_type: "owner", user_id: null, full_name: "Suresh Nair", email: "suresh.nair@example.com", contact_number: "+91-9222233333", persons_living: null, id_proof_type: null, is_current: true, valid_from: "2025-08-01" },
+      { id: 5, house_id: 105, party_type: "tenant", user_id: null, full_name: "Rahul Verma", email: "rahul.verma@example.com", contact_number: "+91-9988776655", persons_living: 2, id_proof_type: "Aadhaar", is_current: true, valid_from: "2025-08-01" },
+      { id: 6, house_id: 106, party_type: "owner", user_id: null, full_name: "Meera Iyer", email: "meera.iyer@example.com", contact_number: "+91-9333344444", persons_living: null, id_proof_type: null, is_current: true, valid_from: "2025-06-01" }
+    ],
+    houseHistory: {
+      103: [{ id: 12, from_status: "empty", to_status: "owned", changed_by: 15, changed_at: "2026-01-15T09:30:00Z", note: "Initial owner registered." }],
+      105: [
+        { id: 13, from_status: "empty", to_status: "owned", changed_by: 15, changed_at: "2025-08-01T09:00:00Z", note: "Owner registered." },
+        { id: 14, from_status: "owned", to_status: "rented", changed_by: 15, changed_at: "2025-08-05T09:00:00Z", note: "Tenant moved in." }
+      ]
+    },
+
+    financeRate: {
+      current: { id: 3, amount: "2500.00", valid_from: "2026-04-01", created_at: "2026-03-20T10:00:00Z" },
+      history: [
+        { id: 3, amount: "2500.00", valid_from: "2026-04-01", created_at: "2026-03-20T10:00:00Z" },
+        { id: 1, amount: "2000.00", valid_from: "2025-01-01", created_at: "2024-12-15T09:00:00Z" }
+      ]
+    },
+    houseDues: [
+      { id: 490, house_id: 103, period_year: 2026, period_month: 5, amount_due: "2500.00", due_date: "2026-05-01", status: "paid", source: "accrued", locked_rate: null, paid_at: "2026-05-03T10:00:00Z" },
+      { id: 501, house_id: 103, period_year: 2026, period_month: 6, amount_due: "2500.00", due_date: "2026-06-01", status: "outstanding", source: "accrued", locked_rate: null, paid_at: null },
+      { id: 502, house_id: 103, period_year: 2026, period_month: 7, amount_due: "2500.00", due_date: "2026-07-01", status: "outstanding", source: "accrued", locked_rate: null, paid_at: null },
+      { id: 510, house_id: 104, period_year: 2026, period_month: 6, amount_due: "2500.00", due_date: "2026-06-01", status: "paid", source: "accrued", locked_rate: null, paid_at: "2026-06-02T10:00:00Z" },
+      { id: 511, house_id: 104, period_year: 2026, period_month: 7, amount_due: "2500.00", due_date: "2026-07-01", status: "paid", source: "accrued", locked_rate: null, paid_at: "2026-07-01T10:00:00Z" },
+      { id: 520, house_id: 105, period_year: 2026, period_month: 7, amount_due: "2500.00", due_date: "2026-07-01", status: "outstanding", source: "accrued", locked_rate: null, paid_at: null }
+    ],
+    payments: [
+      { id: 88, house_id: 104, amount: "5000.00", method: "bank_transfer", reference: "UTR123456789", provider: "admin_manual", status: "recorded", paid_at: "2026-07-01T00:00:00Z", voided_at: null, void_reason: null }
+    ],
+    expenseCategories: [
+      { id: 1, name: "Electricity", is_system: true },
+      { id: 2, name: "Water", is_system: true },
+      { id: 3, name: "Housekeeping", is_system: true },
+      { id: 4, name: "Security", is_system: true },
+      { id: 5, name: "Repairs", is_system: true },
+      { id: 6, name: "Salaries", is_system: true },
+      { id: 7, name: "Misc", is_system: true }
+    ],
+    expenses: [
+      { id: 44, category_id: 1, amount: "8500.00", description: "June electricity bill", incurred_on: "2026-06-28", status: "recorded", void_reason: null },
+      { id: 45, category_id: 4, amount: "22000.00", description: "Security guard salaries — June", incurred_on: "2026-06-30", status: "recorded", void_reason: null }
+    ],
+    reserveLedger: [
+      { id: 300, entry_type: "collection", direction: "inflow", amount: "5000.00", description: null, occurred_on: "2026-07-01", source_type: "payment", source_id: 88, is_reversed: false },
+      { id: 299, entry_type: "expense", direction: "outflow", amount: "22000.00", description: "Security guard salaries — June", occurred_on: "2026-06-30", source_type: "expense", source_id: 45, is_reversed: false },
+      { id: 298, entry_type: "expense", direction: "outflow", amount: "8500.00", description: "June electricity bill", occurred_on: "2026-06-28", source_type: "expense", source_id: 44, is_reversed: false },
+      { id: 297, entry_type: "interest", direction: "inflow", amount: "1200.00", description: "Quarterly FD interest credited", occurred_on: "2026-06-01", source_type: null, source_id: null, is_reversed: false },
+      { id: 296, entry_type: "opening", direction: "inflow", amount: "240000.00", description: "Opening reserve balance", occurred_on: "2025-01-01", source_type: null, source_id: null, is_reversed: false }
+    ],
+
+    complaintCategories: [
+      { id: 1, name: "Electrical", is_active: true, is_system: true },
+      { id: 2, name: "Plumbing", is_active: true, is_system: true },
+      { id: 3, name: "Common Area", is_active: true, is_system: true },
+      { id: 4, name: "Security", is_active: true, is_system: true },
+      { id: 5, name: "Cleaning", is_active: true, is_system: true },
+      { id: 6, name: "Other", is_active: true, is_system: true }
+    ],
+    complaints: [
+      {
+        id: 501, reference: "C-000123", house_id: 103, house_display_code: "Wing A-201", raised_by: 42,
+        category_id: 3, category_name: "Common Area", title: "Water leakage in common corridor",
+        description: "There's a steady water leak near the 2nd floor corridor, been going on for 2 days.",
+        status: "open", resolved_at: null, closed_at: null, archived_at: null, withdrawn_at: null,
+        created_at: "2026-07-10T09:00:00Z", updated_at: "2026-07-10T09:00:00Z",
+        timeline: [{ id: 1, from_status: null, to_status: "open", note: null, changed_by: 42, created_at: "2026-07-10T09:00:00Z" }],
+        images: []
+      },
+      {
+        id: 502, reference: "C-000124", house_id: 104, house_display_code: "Wing A-202", raised_by: 15,
+        category_id: 1, category_name: "Electrical", title: "Flickering light in parking area",
+        description: "The light near slot 12 keeps flickering at night.",
+        status: "in_progress", resolved_at: null, closed_at: null, archived_at: null, withdrawn_at: null,
+        created_at: "2026-07-05T09:00:00Z", updated_at: "2026-07-06T09:00:00Z",
+        timeline: [
+          { id: 2, from_status: null, to_status: "open", note: null, changed_by: 15, created_at: "2026-07-05T09:00:00Z" },
+          { id: 3, from_status: "open", to_status: "in_progress", note: "Electrician scheduled for tomorrow.", changed_by: 15, created_at: "2026-07-06T09:00:00Z" }
+        ],
+        images: []
+      },
+      {
+        id: 503, reference: "C-000119", house_id: 103, house_display_code: "Wing A-201", raised_by: 42,
+        category_id: 2, category_name: "Plumbing", title: "Leaking tap in kitchen",
+        description: "Kitchen tap has been dripping for a week now.",
+        status: "resolved", resolved_at: "2026-06-20T09:00:00Z", closed_at: null, archived_at: null, withdrawn_at: null,
+        created_at: "2026-06-15T09:00:00Z", updated_at: "2026-06-20T09:00:00Z",
+        timeline: [
+          { id: 4, from_status: null, to_status: "open", note: null, changed_by: 42, created_at: "2026-06-15T09:00:00Z" },
+          { id: 5, from_status: "open", to_status: "in_progress", note: "Plumber assigned.", changed_by: 15, created_at: "2026-06-17T09:00:00Z" },
+          { id: 6, from_status: "in_progress", to_status: "resolved", note: "Tap washer replaced.", changed_by: 15, created_at: "2026-06-20T09:00:00Z" }
+        ],
+        images: []
+      }
+    ],
+
+    notices: [
+      {
+        id: 12, title: "Water supply maintenance on Sunday",
+        body: "<p>Water supply will be <strong>shut off</strong> from 10am to 2pm on Sunday for tank cleaning.</p>",
+        status: "published", is_pinned: true, published_at: "2026-07-10T08:00:00Z", expires_at: "2026-07-20T00:00:00Z",
+        last_edited_at: null, created_by: 15, withdrawn_at: null, attachments: [],
+        readBy: [15]
+      },
+      {
+        id: 13, title: "Annual General Meeting — July 25",
+        body: "<p>The AGM will be held on <strong>July 25th, 6:00 PM</strong> in the clubhouse. All owners are requested to attend.</p><ul><li>Budget review</li><li>Committee elections</li></ul>",
+        status: "published", is_pinned: false, published_at: "2026-07-08T08:00:00Z", expires_at: null,
+        last_edited_at: null, created_by: 15, withdrawn_at: null, attachments: [{id:1, filename:"agm-agenda.pdf"}],
+        readBy: []
+      },
+      {
+        id: 14, title: "Diwali decoration guidelines (draft)",
+        body: "<p>Draft guidelines for common area decoration during Diwali.</p>",
+        status: "draft", is_pinned: false, published_at: null, expires_at: null,
+        last_edited_at: "2026-07-11T08:00:00Z", created_by: 15, withdrawn_at: null, attachments: [],
+        readBy: []
+      }
+    ],
+
+    notifications: [
+      { id: 300, type: "maintenance_due", title: "Maintenance dues pending", body: "You have 2 month(s) of maintenance dues outstanding, totalling 5000.00.", entity_type: "house", entity_id: 103, created_at: "2026-07-13T06:00:00Z", for_user: 42, read: false },
+      { id: 301, type: "notice", title: "New notice published", body: "Water supply maintenance on Sunday", entity_type: "notice", entity_id: 12, created_at: "2026-07-10T08:00:00Z", for_user: 42, read: false },
+      { id: 302, type: "complaint_update", title: "Complaint update", body: "Your complaint C-000119 moved from in_progress to resolved.", entity_type: "complaint", entity_id: 503, created_at: "2026-06-20T09:00:00Z", for_user: 42, read: false },
+      { id: 303, type: "complaint_new", title: "New complaint raised", body: "C-000123 — Water leakage in common corridor (Wing A-201)", entity_type: "complaint", entity_id: 501, created_at: "2026-07-10T09:00:00Z", for_user: 15, read: false },
+      { id: 304, type: "complaint_withdrawn", title: "Complaint withdrawn", body: "A complaint on Wing B-101 was withdrawn by the raiser.", entity_type: "complaint", entity_id: 999, created_at: "2026-07-09T09:00:00Z", for_user: 15, read: false },
+      { id: 305, type: "notice", title: "New notice published", body: "Annual General Meeting — July 25", entity_type: "notice", entity_id: 13, created_at: "2026-07-08T08:00:00Z", for_user: 15, read: false }
+    ],
+
+    notificationsConfig: { dues_advance_days: 3, dues_reminder_interval_days: 5, read_retention_days: 30 },
+    complaintsConfig: { auto_archive_days: 15, max_report_images: 2, max_proof_images: 2 },
+
+    _idSeq: 9000
+  };
+}
+function nextId(){ return ++DB._idSeq; }
+seedDB();
+
+/* =========================================================================
+   2. MOCK API — functions named after real endpoints; same shapes/errors
+      as documented. Each is commented with the endpoint it simulates.
+   ========================================================================= */
+const ApiError = (code, message, details) => ({ __apiError: true, code, message, details: details || {} });
+
+const mockApi = {
+  // mocks POST /auth/login
+  login(email, password){
+    const u = DB.users.find(x => x.email.toLowerCase() === String(email).toLowerCase().trim());
+    if (!u || !password) throw ApiError("authentication_error", "Invalid email or password.");
+    return { user_ref: u.id, available_portals: u.available_portals, token_type: "bearer" };
+  },
+
+  // mocks GET /me?portal=
+  me(userId, portal){
+    const u = DB.users.find(x => x.id === userId);
+    if (!u) throw ApiError("authentication_error", "Invalid token.");
+    let active = null;
+    if (portal && u.available_portals.includes(portal)) active = portal;
+    else if (u.available_portals.length === 1) active = u.available_portals[0];
+    const modules = active ? (u.modulesByPortal[active] || []) : [];
+    const permissions = active ? (u.permsByPortal[active] || []) : [];
+    const landing = active ? (u.landingByPortal[active] || null) : null;
+    return {
+      user: { id: u.id, email: u.email, full_name: u.full_name, phone: u.phone },
+      active_society_id: DB.society.id,
+      available_portals: u.available_portals,
+      active_portal: active,
+      modules, landing, permissions,
+      onboarding_required: DB.society.status !== "active"
+    };
+  },
+
+  // mocks GET /houses
+  listHouses(filters){
+    filters = filters || {};
+    let items = DB.houses.slice();
+    if (filters.status) items = items.filter(h => h.status === filters.status);
+    if (filters.building_id) items = items.filter(h => h.building_id === Number(filters.building_id));
+    items = items.map(h => ({...h, building_name: DB.buildings.find(b=>b.id===h.building_id)?.name}));
+    return { items, total: items.length, page: 1, page_size: 50 };
+  },
+
+  // mocks GET /houses/{id}
+  getHouse(houseId){
+    const house = DB.houses.find(h => h.id === houseId);
+    if (!house) throw ApiError("not_found", "House not found.", { house_id: houseId });
+    const owner = DB.occupancies.find(o => o.house_id === houseId && o.party_type === "owner" && o.is_current) || null;
+    const tenant = house.status === "rented" ? (DB.occupancies.find(o => o.house_id === houseId && o.party_type === "tenant" && o.is_current) || null) : null;
+    return { house, owner, tenant };
+  },
+
+  // mocks GET /houses/{id}/history
+  houseHistory(houseId){
+    return DB.houseHistory[houseId] || [];
+  },
+
+  // mocks POST /houses/{id}/status
+  changeHouseStatus(houseId, payload){
+    const house = DB.houses.find(h => h.id === houseId);
+    if (!house) throw ApiError("not_found", "House not found.", { house_id: houseId });
+    if (payload.to_status === "empty") throw ApiError("conflict", "A house can never return to empty.");
+    if (!["owned","rented","to_let","for_sale"].includes(payload.to_status)) throw ApiError("validation_error", "Unknown target status.");
+    if (payload.to_status === "owned" && (payload.owner.persons_living === null || payload.owner.persons_living === undefined))
+      throw ApiError("validation_error", "persons_living is required for owned.");
+    if (["to_let","for_sale"].includes(payload.to_status) && payload.owner.persons_living != null)
+      throw ApiError("validation_error", "persons_living is not captured for to_let/for_sale.");
+    if (payload.to_status === "rented" && !payload.tenant) throw ApiError("validation_error", "tenant is required for rented.");
+    if (payload.to_status === "rented" && (payload.tenant.persons_living === null || payload.tenant.persons_living === undefined))
+      throw ApiError("validation_error", "persons_living is required for the tenant.");
+
+    const from = house.status;
+    house.status = payload.to_status;
+    if (!house.first_left_empty_on && from === "empty") house.first_left_empty_on = todayISO();
+
+    // close existing occupancies, open new
+    DB.occupancies.filter(o => o.house_id === houseId && o.is_current).forEach(o => { if (o.party_type === "owner" || (o.party_type === "tenant" && payload.to_status !== "rented")) o.is_current = false; });
+    let owner = DB.occupancies.find(o => o.house_id === houseId && o.party_type === "owner" && o.is_current);
+    if (owner) Object.assign(owner, payload.owner);
+    else { owner = { id: nextId(), house_id: houseId, party_type: "owner", user_id: null, is_current: true, valid_from: todayISO(), ...payload.owner }; DB.occupancies.push(owner); }
+
+    if (payload.to_status === "rented" && payload.tenant){
+      let tenant = DB.occupancies.find(o => o.house_id === houseId && o.party_type === "tenant" && o.is_current);
+      if (tenant) Object.assign(tenant, payload.tenant);
+      else { tenant = { id: nextId(), house_id: houseId, party_type: "tenant", user_id: null, is_current: true, valid_from: todayISO(), ...payload.tenant }; DB.occupancies.push(tenant); }
+    }
+
+    if (from !== payload.to_status){
+      if (!DB.houseHistory[houseId]) DB.houseHistory[houseId] = [];
+      DB.houseHistory[houseId].unshift({ id: nextId(), from_status: from, to_status: payload.to_status, changed_by: CURRENT.userId, changed_at: nowISO(), note: null });
+    }
+    return this.getHouse(houseId);
+  },
+
+  // mocks GET /finance/rate
+  getRate(){ return DB.financeRate; },
+  // mocks POST /finance/rate
+  setRate(amount, validFrom){
+    if (Number(amount) <= 0) throw ApiError("validation_error", "amount must be positive.");
+    if (DB.financeRate.history.some(r => r.valid_from === validFrom)) throw ApiError("conflict", "A rate already exists for this effective month.", { valid_from: validFrom });
+    const r = { id: nextId(), amount: Number(amount).toFixed(2), valid_from: validFrom, created_at: nowISO() };
+    DB.financeRate.history.unshift(r);
+    DB.financeRate.current = r;
+    return r;
+  },
+  // mocks GET /finance/houses/{id}/dues
+  houseDues(houseId){
+    const all = DB.houseDues.filter(d => d.house_id === houseId).sort((a,b)=> (a.period_year-b.period_year)||(a.period_month-b.period_month));
+    const outstanding = all.filter(d => d.status === "outstanding").map(d => ({...d, is_overdue: new Date(d.due_date) < new Date(todayISO())}));
+    const outstanding_total = outstanding.reduce((s,d)=>s+Number(d.amount_due),0);
+    return { house_id: houseId, outstanding, outstanding_total: outstanding_total.toFixed(2), history: all.map(d=>({...d, is_overdue: d.status==="outstanding" && new Date(d.due_date) < new Date(todayISO())})) };
+  },
+  // mocks POST /finance/houses/{id}/payments
+  recordPayment(houseId, payload){
+    const outstanding = DB.houseDues.filter(d => d.house_id === houseId && d.status === "outstanding").sort((a,b)=> (a.period_year-b.period_year)||(a.period_month-b.period_month));
+    if (!outstanding.length) throw ApiError("validation_error", "This house has no outstanding dues.");
+    const n = payload.pay_all ? outstanding.length : Math.min(payload.months, outstanding.length);
+    if (!payload.pay_all && payload.months > outstanding.length) throw ApiError("validation_error", "Requested months exceed the outstanding count.", { requested: payload.months, outstanding: outstanding.length });
+    const settle = outstanding.slice(0, n);
+    let amount = 0;
+    settle.forEach(d => { d.status = "paid"; d.paid_at = nowISO(); amount += Number(d.amount_due); });
+    const pay = { id: nextId(), house_id: houseId, amount: amount.toFixed(2), method: payload.method, reference: payload.reference||null, provider: "admin_manual", status: "recorded", paid_at: nowISO(), voided_at: null, void_reason: null };
+    DB.payments.unshift(pay);
+    DB.reserveLedger.unshift({ id: nextId(), entry_type: "collection", direction: "inflow", amount: pay.amount, description: null, occurred_on: todayISO(), source_type: "payment", source_id: pay.id, is_reversed: false });
+    return pay;
+  },
+  // mocks GET /finance/expense-categories
+  expenseCategories(){ return DB.expenseCategories; },
+  // mocks GET /finance/expenses
+  expenses(){ return { items: DB.expenses, total: DB.expenses.length }; },
+  // mocks POST /finance/expenses
+  addExpense(payload){
+    if (!DB.expenseCategories.find(c=>c.id===Number(payload.category_id))) throw ApiError("not_found", "Expense category not found.");
+    const e = { id: nextId(), category_id: Number(payload.category_id), amount: Number(payload.amount).toFixed(2), description: payload.description||null, incurred_on: payload.incurred_on, status: "recorded", void_reason: null };
+    DB.expenses.unshift(e);
+    DB.reserveLedger.unshift({ id: nextId(), entry_type: "expense", direction: "outflow", amount: e.amount, description: e.description, occurred_on: e.incurred_on, source_type: "expense", source_id: e.id, is_reversed: false });
+    return e;
+  },
+  // mocks GET /finance/reserve
+  reserve(){
+    const balance = DB.reserveLedger.reduce((s,e)=> s + (e.direction==="inflow"?1:-1)*Number(e.amount), 0);
+    return { balance: balance.toFixed(2), entries: DB.reserveLedger, total: DB.reserveLedger.length };
+  },
+  // mocks GET /finance/analytics/collection
+  analyticsCollection(){
+    const expected = DB.houseDues.reduce((s,d)=>s+Number(d.amount_due),0);
+    const collected = DB.houseDues.filter(d=>d.status==="paid").reduce((s,d)=>s+Number(d.amount_due),0);
+    return { expected: expected.toFixed(2), collected: collected.toFixed(2), outstanding: (expected-collected).toFixed(2) };
+  },
+  // mocks GET /finance/analytics/arrears
+  analyticsArrears(){
+    const byHouse = {};
+    DB.houseDues.filter(d=>d.status==="outstanding").forEach(d=>{
+      byHouse[d.house_id] = byHouse[d.house_id] || { house_id: d.house_id, outstanding_total: 0, months_outstanding: 0 };
+      byHouse[d.house_id].outstanding_total += Number(d.amount_due);
+      byHouse[d.house_id].months_outstanding += 1;
+    });
+    const houses = Object.values(byHouse).map(h=>({...h, outstanding_total: h.outstanding_total.toFixed(2)}));
+    return { total_outstanding: houses.reduce((s,h)=>s+Number(h.outstanding_total),0).toFixed(2), houses };
+  },
+
+  // mocks GET /complaints/categories
+  complaintCategories(){ return DB.complaintCategories.filter(c=>c.is_active); },
+  // mocks GET /complaints
+  listComplaints(filters, scope){
+    filters = filters || {};
+    let items = DB.complaints.slice();
+    if (scope && scope.houseIds) items = items.filter(c => scope.houseIds.includes(c.house_id));
+    if (filters.status) items = items.filter(c => c.status === filters.status);
+    items.sort((a,b)=> new Date(b.created_at)-new Date(a.created_at));
+    return { items, total: items.length };
+  },
+  // mocks GET /complaints/{id}
+  getComplaint(id){
+    const c = DB.complaints.find(x=>x.id===id);
+    if (!c) throw ApiError("not_found", "Complaint not found.", { complaint_id: id });
+    return c;
+  },
+  // mocks POST /complaints
+  createComplaint(payload, raisedBy, houseId){
+    const cat = DB.complaintCategories.find(c=>c.id===Number(payload.category_id) && c.is_active);
+    if (!cat) throw ApiError("not_found", "Category not found.", { category_id: payload.category_id });
+    const house = DB.houses.find(h=>h.id===houseId);
+    const c = {
+      id: nextId(), reference: "C-" + String(100000+DB.complaints.length+1).slice(-6),
+      house_id: houseId, house_display_code: house? house.display_code : null, raised_by: raisedBy,
+      category_id: cat.id, category_name: cat.name, title: payload.title.trim(), description: payload.description.trim(),
+      status: "open", resolved_at: null, closed_at: null, archived_at: null, withdrawn_at: null,
+      created_at: nowISO(), updated_at: nowISO(),
+      timeline: [{ id: nextId(), from_status: null, to_status: "open", note: null, changed_by: raisedBy, created_at: nowISO() }],
+      images: []
+    };
+    DB.complaints.unshift(c);
+    return c;
+  },
+  // mocks POST /complaints/{id}/withdraw
+  withdrawComplaint(id, userId){
+    const c = this.getComplaint(id);
+    if (c.raised_by !== userId) throw ApiError("permission_denied", "Only the raiser may withdraw this complaint.");
+    if (c.status !== "open") throw ApiError("conflict", "Only an open complaint can be withdrawn.", { status: c.status });
+    c.status = "withdrawn"; c.withdrawn_at = nowISO(); c.updated_at = nowISO();
+    c.timeline.push({ id: nextId(), from_status: "open", to_status: "withdrawn", note: null, changed_by: userId, created_at: nowISO() });
+    return c;
+  },
+  // mocks POST /complaints/{id}/status  (in_progress / closed / reopen)
+  changeComplaintStatus(id, toStatus, note){
+    const c = this.getComplaint(id);
+    const allowed = { open: ["in_progress"], resolved: ["closed","in_progress"] };
+    if (toStatus === "resolved") throw ApiError("validation_error", "Resolve a complaint via POST /complaints/{id}/resolve so proof images can be attached.");
+    if (!allowed[c.status] || !allowed[c.status].includes(toStatus))
+      throw ApiError("conflict", `Cannot move a complaint from '${c.status}' to '${toStatus}'.`, { from_status: c.status, to_status: toStatus });
+    const from = c.status;
+    c.status = toStatus; c.updated_at = nowISO();
+    if (toStatus === "closed") c.closed_at = nowISO();
+    c.timeline.push({ id: nextId(), from_status: from, to_status: toStatus, note: note||null, changed_by: CURRENT.userId, created_at: nowISO() });
+    return c;
+  },
+  // mocks POST /complaints/{id}/resolve
+  resolveComplaint(id, note, proofFiles){
+    const c = this.getComplaint(id);
+    if (c.status !== "in_progress") throw ApiError("conflict", `Cannot move a complaint from '${c.status}' to 'resolved'.`, { from_status: c.status, to_status: "resolved" });
+    c.status = "resolved"; c.resolved_at = nowISO(); c.updated_at = nowISO();
+    (proofFiles||[]).forEach(f => c.images.push({ id: nextId(), kind: "proof", vault_document_id: nextId(), preview_url: null, filename: f, created_at: nowISO() }));
+    c.timeline.push({ id: nextId(), from_status: "in_progress", to_status: "resolved", note: note||null, changed_by: CURRENT.userId, created_at: nowISO() });
+    return c;
+  },
+  // mocks POST /complaints/{id}/images
+  addReportImage(id, filename){
+    const c = this.getComplaint(id);
+    if (c.status !== "open") throw ApiError("conflict", "Report images can only be changed while the complaint is open.", { status: c.status });
+    const cfg = DB.complaintsConfig;
+    const count = c.images.filter(i=>i.kind==="report").length;
+    if (count >= cfg.max_report_images) throw ApiError("conflict", "Report image limit reached for this complaint.", { limit: cfg.max_report_images });
+    const img = { id: nextId(), kind: "report", vault_document_id: nextId(), preview_url: null, filename, created_at: nowISO() };
+    c.images.push(img);
+    return img;
+  },
+
+  // mocks GET /notices
+  listNotices(scope){
+    let items = DB.notices.slice();
+    if (scope === "active") items = items.filter(n => n.status === "published" && (!n.expires_at || new Date(n.expires_at) > new Date()));
+    items.sort((a,b)=> (b.is_pinned - a.is_pinned) || new Date(b.published_at||b.last_edited_at||0) - new Date(a.published_at||a.last_edited_at||0));
+    return items;
+  },
+  // mocks GET /notices/archive
+  archiveNotices(){
+    return DB.notices.filter(n => n.status === "withdrawn" || (n.status==="published" && n.expires_at && new Date(n.expires_at) <= new Date()));
+  },
+  // mocks POST /notices
+  createNotice(payload){
+    if (!stripTags(payload.body).trim()) throw ApiError("validation_error", "Body must not be empty.");
+    const n = {
+      id: nextId(), title: payload.title.trim(), body: sanitizeBody(payload.body),
+      status: payload.publish ? "published" : "draft", is_pinned: !!payload.is_pinned,
+      published_at: payload.publish ? nowISO() : null, expires_at: payload.expires_at || null,
+      last_edited_at: null, created_by: CURRENT.userId, withdrawn_at: null, attachments: [], readBy: []
+    };
+    DB.notices.unshift(n);
+    if (payload.publish) notifyAllResidents("notice", "New notice published", n.title, "notice", n.id);
+    return n;
+  },
+  // mocks POST /notices/{id}/publish
+  publishNotice(id){
+    const n = DB.notices.find(x=>x.id===id);
+    if (!n) throw ApiError("not_found", "Notice not found.");
+    if (n.status !== "draft") throw ApiError("conflict", `Cannot move a notice from '${n.status}' to 'published'.`, { from_status: n.status, to_status: "published" });
+    n.status = "published"; n.published_at = nowISO();
+    notifyAllResidents("notice", "New notice published", n.title, "notice", n.id);
+    return n;
+  },
+  // mocks POST /notices/{id}/withdraw
+  withdrawNotice(id){
+    const n = DB.notices.find(x=>x.id===id);
+    if (!n) throw ApiError("not_found", "Notice not found.");
+    if (n.status === "withdrawn") throw ApiError("conflict", "Cannot move a notice from 'withdrawn' to 'withdrawn'.");
+    n.status = "withdrawn"; n.withdrawn_at = nowISO();
+    return n;
+  },
+  // mocks PATCH /notices/{id}  (pin toggle etc.)
+  updateNotice(id, patch){
+    const n = DB.notices.find(x=>x.id===id);
+    if (!n) throw ApiError("not_found", "Notice not found.");
+    if (n.status === "withdrawn") throw ApiError("conflict", "A withdrawn notice cannot be edited.", { status: "withdrawn" });
+    Object.assign(n, patch);
+    return n;
+  },
+  // mocks GET /notices/{id} (also marks read)
+  openNotice(id, userId){
+    const n = DB.notices.find(x=>x.id===id);
+    if (!n) throw ApiError("not_found", "Notice not found.");
+    if (!n.readBy.includes(userId)) n.readBy.push(userId);
+    clearRelatedNotifications(userId, "notice", id);
+    return n;
+  },
+  // mocks GET /notices/{id}/receipts
+  noticeReceipts(id){
+    const n = DB.notices.find(x=>x.id===id);
+    const owners = DB.occupancies.filter(o=>o.party_type==="owner" && o.is_current && o.user_id).map(o=>o.user_id);
+    const uniqueOwners = [...new Set(owners)];
+    const read = uniqueOwners.filter(u => n.readBy.includes(u));
+    const unread = uniqueOwners.filter(u => !n.readBy.includes(u));
+    return { notice_id: id, total_owners: uniqueOwners.length, read_count: read.length, unread_count: unread.length, read, unread };
+  },
+
+  // mocks GET /notifications
+  listNotifications(userId){
+    const items = DB.notifications.filter(n => n.for_user === userId && !n.read).sort((a,b)=> new Date(b.created_at)-new Date(a.created_at));
+    return { items, unread_count: items.length };
+  },
+  unreadCount(userId){ return DB.notifications.filter(n=>n.for_user===userId && !n.read).length; },
+  // mocks POST /notifications/{id}/read
+  markRead(id){
+    const n = DB.notifications.find(x=>x.id===id);
+    if (!n) throw ApiError("not_found", "Notification not found.");
+    const already = n.read; n.read = true;
+    return { cleared: already ? 0 : 1 };
+  },
+  // mocks POST /notifications/read-all
+  markAllRead(userId){
+    let cleared = 0;
+    DB.notifications.filter(n=>n.for_user===userId && !n.read).forEach(n=>{ n.read = true; cleared++; });
+    return { cleared };
+  }
+};
+
+function notifyAllResidents(type, title, body, entityType, entityId){
+  DB.users.forEach(u => {
+    if (u.available_portals.includes("resident")){
+      DB.notifications.unshift({ id: nextId(), type, title, body, entity_type: entityType, entity_id: entityId, created_at: nowISO(), for_user: u.id, read: false });
+    }
+  });
+}
+function clearRelatedNotifications(userId, entityType, entityId){
+  DB.notifications.filter(n => n.for_user===userId && n.entity_type===entityType && n.entity_id===entityId && !n.read).forEach(n=>n.read=true);
+}
+function stripTags(html){ const d = document.createElement("div"); d.innerHTML = html; return d.textContent || ""; }
+function sanitizeBody(html){
+  // naive allow-list sanitizer, illustrative only (mirrors notice-board.md's nh3 allow-list intent)
+  const allowed = ["P","BR","SPAN","STRONG","B","EM","I","U","S","UL","OL","LI","A","H1","H2","H3","H4","BLOCKQUOTE","CODE","PRE","HR"];
+  const d = document.createElement("div"); d.innerHTML = html;
+  (function clean(node){
+    [...node.children].forEach(el => {
+      if (!allowed.includes(el.tagName)){ el.replaceWith(...el.childNodes); }
+      else {
+        [...el.attributes].forEach(attr => {
+          if (el.tagName === "A" && ["href","title"].includes(attr.name)) return;
+          el.removeAttribute(attr.name);
+        });
+        clean(el);
+      }
+    });
+  })(d);
+  return d.innerHTML;
+}
+function todayISO(){ return CLOCK.toISOString().slice(0,10); }
+function nowISO(){ return CLOCK.toISOString(); }
+// fixed mock "now" so the demo data (dues, expiry) stays consistent across a session
+const CLOCK = new Date("2026-07-13T12:00:00Z");
+
+/* =========================================================================
+   3. APP STATE & ROUTER
+   ========================================================================= */
+const CURRENT = { userId: null, portal: null, me: null };
+
+function login(email, password){
+  mockApi.login(email, password); // throws on bad creds
+  const u = DB.users.find(x => x.email.toLowerCase() === email.toLowerCase().trim());
+  CURRENT.userId = u.id;
+  if (u.available_portals.length === 1){
+    setPortal(u.available_portals[0]);
+  } else {
+    CURRENT.portal = null;
+    location.hash = "#/choose-portal";
+  }
+}
+function setPortal(portal){
+  CURRENT.portal = portal;
+  CURRENT.me = mockApi.me(CURRENT.userId, portal);
+  location.hash = "#/" + (CURRENT.me.landing || "dashboard");
+}
+function logout(){
+  CURRENT.userId = null; CURRENT.portal = null; CURRENT.me = null;
+  location.hash = "#/login";
+}
+function currentUser(){ return DB.users.find(u=>u.id===CURRENT.userId); }
+function has(perm){ return CURRENT.me && CURRENT.me.permissions.includes(perm); }
+function hasModule(mod){ return CURRENT.me && CURRENT.me.modules.includes(mod); }
+
+window.addEventListener("hashchange", render);
+window.addEventListener("DOMContentLoaded", () => { if (!location.hash) location.hash = "#/login"; render(); });
+
+function route(){
+  const h = location.hash.replace(/^#\//,"") || "login";
+  const [path, param] = h.split("/");
+  return { path, param };
+}
+
+function toast(msg){
+  const t = document.createElement("div"); t.className = "toast"; t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(), 2400);
+}
+
+/* =========================================================================
+   4. RENDER — top-level dispatcher
+   ========================================================================= */
+function render(){
+  const app = document.getElementById("app");
+  const { path, param } = route();
+
+  if (!CURRENT.userId || path === "login"){
+    app.innerHTML = renderLogin();
+    wireLogin();
+    return;
+  }
+  if (path === "choose-portal" || !CURRENT.portal){
+    app.innerHTML = renderPortalChooser();
+    wirePortalChooser();
+    return;
+  }
+  CURRENT.me = mockApi.me(CURRENT.userId, CURRENT.portal); // refresh permission hints, like a real GET /me
+  app.innerHTML = renderShell(path, param);
+  wireShell(path, param);
+}
+
+/* ---------- Login screen ---------- */
+function renderLogin(){
+  return `
+  <div class="login-screen">
+    <div class="login-card">
+      <div class="login-logo">SM</div>
+      <h1>Society Manager</h1>
+      <div class="sub">Sign in to access your society's admin or resident portal.</div>
+      <div id="login-error"></div>
+      <form id="login-form">
+        <div class="field"><label>Email</label><input type="text" id="login-email" placeholder="vikram.shah@example.com" value="vikram.shah@example.com"></div>
+        <div class="field"><label>Password</label><input type="password" id="login-password" placeholder="Any password" value="demo123"></div>
+        <button class="btn block" type="submit">Sign in</button>
+      </form>
+      <div class="hint-users">
+        Demo accounts (mock — any password works):<br>
+        <code>vikram.shah@example.com</code> — admin + resident (dual portal)<br>
+        <code>priya.sharma@example.com</code> — resident only
+      </div>
+    </div>
+  </div>`;
+}
+function wireLogin(){
+  document.getElementById("login-form").addEventListener("submit", (e)=>{
+    e.preventDefault();
+    const email = document.getElementById("login-email").value;
+    const pw = document.getElementById("login-password").value;
+    try{
+      login(email, pw);
+      render();
+    }catch(err){
+      document.getElementById("login-error").innerHTML = `<div class="error-box">${err.message || "Invalid email or password."}</div>`;
+    }
+  });
+}
+
+/* ---------- Portal chooser ---------- */
+function renderPortalChooser(){
+  const u = currentUser();
+  const opts = { admin: { ic:"🛠️", desc:"Manage houses, finance, complaints, notices & more" }, resident: { ic:"🏠", desc:"View notices, raise complaints, pay dues" } };
+  return `
+  <div class="portal-screen">
+    <div class="portal-card">
+      <h2>Welcome, ${u.full_name}</h2>
+      <p style="color:var(--muted); font-size:13px;">This account has access to more than one portal. Choose one to continue.</p>
+      <div class="portal-options">
+        ${u.available_portals.map(p => `
+          <button class="portal-opt" data-portal="${p}">
+            <div class="ic">${opts[p].ic}</div>
+            <div class="name">${p}</div>
+            <div class="desc">${opts[p].desc}</div>
+          </button>`).join("")}
+      </div>
+    </div>
+  </div>`;
+}
+function wirePortalChooser(){
+  document.querySelectorAll(".portal-opt").forEach(b=>{
+    b.addEventListener("click", ()=>{ setPortal(b.dataset.portal); render(); });
+  });
+}
+
+/* ---------- App shell ---------- */
+const NAV_ITEMS = {
+  dashboard:      { label: "Dashboard",      ic: "📊" },
+  onboarding:     { label: "Onboarding",     ic: "🏗️" },
+  houses:         { label: "Houses",         ic: "🏘️" },
+  finance:        { label: "Finance",        ic: "💰" },
+  complaints:     { label: "Complaints",     ic: "🛠️" },
+  notices:        { label: "Notice Board",   ic: "📣" },
+  notifications:  { label: "Notifications",  ic: "🔔" },
+  myhouse:        { label: "My House",       ic: "🏠" }
+};
+const NAV_ORDER = ["dashboard","onboarding","myhouse","houses","finance","complaints","notices","notifications"];
+
+function renderShell(path, param){
+  const u = currentUser();
+  const modules = CURRENT.me.modules;
+  const navHtml = NAV_ORDER.filter(m => modules.includes(m)).map(m => `
+    <button class="nav-item ${path===m?'active':''}" data-nav="${m}">
+      <span class="ic">${NAV_ITEMS[m].ic}</span><span>${NAV_ITEMS[m].label}</span>
+    </button>`).join("");
+
+  const unread = mockApi.unreadCount(CURRENT.userId);
+  const initials = u.full_name.split(" ").map(x=>x[0]).join("").slice(0,2).toUpperCase();
+
+  return `
+  <div class="shell">
+    <div class="sidebar">
+      <div class="sb-brand">
+        <div class="logo">SM</div>
+        <div><div class="name">Society Manager</div><div class="portal-tag">${CURRENT.portal} portal</div></div>
+      </div>
+      <div class="nav-group-label">Navigation</div>
+      ${navHtml}
+      <div class="sb-footer">
+        <div class="sb-user">
+          <div class="avatar">${initials}</div>
+          <div class="who"><div class="n">${u.full_name}</div><div class="r">${DB.society.name}</div></div>
+        </div>
+        <div class="sb-actions">
+          ${u.available_portals.length>1 ? `<button id="switch-portal-btn">Switch portal</button>` : ""}
+          <button id="logout-btn">Logout</button>
+        </div>
+      </div>
+    </div>
+    <div class="main">
+      <div class="topbar">
+        <div>
+          <div class="title">${NAV_ITEMS[path]?.label || "Dashboard"}</div>
+          <div class="crumbs">${DB.society.name} · ${CURRENT.portal === "admin" ? "Society Admin" : "Resident"}</div>
+        </div>
+        <div class="topbar-right">
+          <div class="bell-wrap" id="bell-btn">
+            <div class="bell">🔔</div>
+            ${unread>0 ? `<div class="badge">${unread>99?'99+':unread}</div>` : ""}
+          </div>
+        </div>
+      </div>
+      <div class="content" id="content">
+        ${renderPage(path, param)}
+      </div>
+    </div>
+  </div>`;
+}
+
+function wireShell(path, param){
+  document.querySelectorAll("[data-nav]").forEach(b=>{
+    b.addEventListener("click", ()=>{ location.hash = "#/" + b.dataset.nav; });
+  });
+  const logoutBtn = document.getElementById("logout-btn");
+  if (logoutBtn) logoutBtn.addEventListener("click", logout);
+  const switchBtn = document.getElementById("switch-portal-btn");
+  if (switchBtn) switchBtn.addEventListener("click", ()=>{ location.hash = "#/choose-portal"; });
+  const bell = document.getElementById("bell-btn");
+  if (bell) bell.addEventListener("click", ()=>{ location.hash = "#/notifications"; });
+
+  wirePage(path, param);
+}
+
+/* ---------- Page dispatcher ---------- */
+function renderPage(path, param){
+  if (!hasModule(path) && path !== "dashboard") return renderForbidden();
+  switch(path){
+    case "dashboard": return CURRENT.portal === "admin" ? renderAdminDashboard() : renderResidentDashboard();
+    case "onboarding": return renderOnboarding();
+    case "houses": return renderHouses(param);
+    case "myhouse": return renderMyHouse();
+    case "finance": return renderFinance(param);
+    case "complaints": return renderComplaints(param);
+    case "notices": return renderNotices(param);
+    case "notifications": return renderNotifications();
+    default: return `<div class="empty-state"><div class="ic">❓</div><h4>Page not found</h4></div>`;
+  }
+}
+function wirePage(path, param){
+  if (!hasModule(path) && path !== "dashboard") return;
+  switch(path){
+    case "dashboard": return CURRENT.portal === "admin" ? wireAdminDashboard() : wireResidentDashboard();
+    case "onboarding": return wireOnboarding();
+    case "houses": return wireHouses(param);
+    case "myhouse": return wireMyHouse();
+    case "finance": return wireFinance(param);
+    case "complaints": return wireComplaints(param);
+    case "notices": return wireNotices(param);
+    case "notifications": return wireNotifications();
+  }
+}
+function renderForbidden(){
+  return `<div class="empty-state"><div class="ic">🔒</div><h4>Module not enabled for this portal</h4><p>Your account doesn't have this module in <code>GET /me</code>'s <code>modules[]</code> for the ${CURRENT.portal} portal.</p></div>`;
+}
+
+/* =========================================================================
+   5. ADMIN SCREENS
+   ========================================================================= */
+
+/* ---- Admin dashboard ---- */
+function renderAdminDashboard(){
+  const houses = DB.houses;
+  const occupied = houses.filter(h=>h.status!=="empty").length;
+  const arrears = mockApi.analyticsArrears();
+  const openComplaints = DB.complaints.filter(c=>["open","in_progress"].includes(c.status)).length;
+  const unreadNotices = 0;
+  return `
+    <div class="stat-row">
+      <div class="stat-card"><div class="label">Houses occupied</div><div class="value">${occupied} / ${houses.length}</div><div class="sub">${houses.length-occupied} empty</div></div>
+      <div class="stat-card"><div class="label">Outstanding dues</div><div class="value">₹${arrears.total_outstanding}</div><div class="sub">${arrears.houses.length} house(s) in arrears</div></div>
+      <div class="stat-card"><div class="label">Open complaints</div><div class="value">${openComplaints}</div><div class="sub">${DB.complaints.filter(c=>c.status==='open').length} unassigned</div></div>
+      <div class="stat-card"><div class="label">Reserve balance</div><div class="value">₹${mockApi.reserve().balance}</div><div class="sub">computed from ledger</div></div>
+    </div>
+    <div class="grid" style="grid-template-columns:1.3fr 1fr;">
+      <div class="panel">
+        <div class="panel-head"><h3>Houses in arrears</h3><div class="desc">GET /finance/analytics/arrears</div></div>
+        <div class="panel-body pad0">
+          <table>
+            <thead><tr><th>House</th><th>Outstanding</th><th>Months</th></tr></thead>
+            <tbody>
+              ${arrears.houses.length ? arrears.houses.map(h=>{
+                const house = DB.houses.find(x=>x.id===h.house_id);
+                return `<tr><td>${house.display_code}</td><td>₹${h.outstanding_total}</td><td>${h.months_outstanding}</td></tr>`;
+              }).join("") : `<tr class="empty-row"><td colspan="3">No houses in arrears 🎉</td></tr>`}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>Recent complaints</h3></div>
+        <div class="panel-body pad0">
+          ${DB.complaints.slice(0,4).map(c=>`
+            <div style="padding:12px 18px; border-bottom:1px solid #eef1f6;">
+              <div style="font-weight:600; font-size:13px;">${c.title}</div>
+              <div style="font-size:11.5px; color:var(--muted); margin-top:3px;">${c.reference} · ${c.house_display_code}</div>
+              <div style="margin-top:6px;">${statusPill(c.status)}</div>
+            </div>`).join("")}
+        </div>
+      </div>
+    </div>`;
+}
+function wireAdminDashboard(){}
+
+/* ---- Onboarding wizard ---- */
+let onboardingState = { step: 1, type: null, buildings: [] };
+function renderOnboarding(){
+  const steps = ["Select type","Map structure","Review","Complete"];
+  return `
+    <div class="panel">
+      <div class="panel-head">
+        <div><h3>Society Onboarding</h3><div class="desc">POST /onboarding/type → /onboarding/buildings/{id}/map or /onboarding/rows → /onboarding/complete</div></div>
+        <span class="pill ${DB.society.status==='active'?'ok':'warn'}">${DB.society.status}</span>
+      </div>
+      <div class="panel-body">
+        <div class="step-row">
+          ${steps.map((s,i)=>`
+            <div class="step ${onboardingState.step===i+1?'active':onboardingState.step>i+1?'done':''}"><span class="dot">${onboardingState.step>i+1?'✓':i+1}</span>${s}</div>
+            ${i<steps.length-1?'<div class="step-sep"></div>':''}
+          `).join("")}
+        </div>
+        <div id="onboarding-step-body">${renderOnboardingStep()}</div>
+      </div>
+    </div>`;
+}
+function renderOnboardingStep(){
+  if (onboardingState.step === 1){
+    return `
+      <p>Choose how this society's physical structure is organized.</p>
+      <div class="field-row">
+        <label class="portal-opt" style="cursor:pointer; display:block;">
+          <input type="radio" name="soctype" value="building" ${onboardingState.type==='building'?'checked':''} style="margin-right:8px;">
+          <strong>Building-based</strong>
+          <div class="desc">Towers/wings, each with floors and generated house numbers.</div>
+        </label>
+        <label class="portal-opt" style="cursor:pointer; display:block;">
+          <input type="radio" name="soctype" value="individual_houses" ${onboardingState.type==='individual_houses'?'checked':''} style="margin-right:8px;">
+          <strong>Individual houses</strong>
+          <div class="desc">Rows of standalone houses (bungalows/row-houses).</div>
+        </label>
+      </div>
+      <div style="margin-top:16px;"><button class="btn" id="ob-next1">Continue</button></div>
+    `;
+  }
+  if (onboardingState.step === 2){
+    return `
+      <p>This society already has <strong>${DB.buildings.length} building(s)</strong> and <strong>${DB.houses.length} house(s)</strong> mapped (seeded demo data).</p>
+      <div class="panel-body pad0" style="border:1px solid var(--border); border-radius:8px; overflow:hidden;">
+        <table>
+          <thead><tr><th>Building</th><th>Houses</th></tr></thead>
+          <tbody>
+            ${DB.buildings.map(b=>`<tr><td>${b.name}</td><td>${DB.houses.filter(h=>h.building_id===b.id).length}</td></tr>`).join("")}
+          </tbody>
+        </table>
+      </div>
+      <div style="margin-top:16px; display:flex; gap:8px;"><button class="btn secondary" id="ob-back2">Back</button><button class="btn" id="ob-next2">Continue to review</button></div>
+    `;
+  }
+  if (onboardingState.step === 3){
+    return `
+      <p>Review before finishing onboarding. <code>POST /onboarding/complete</code> requires a type selected and ≥1 house.</p>
+      <div class="stat-row">
+        <div class="stat-card"><div class="label">Type</div><div class="value" style="font-size:16px;">${onboardingState.type || 'building'}</div></div>
+        <div class="stat-card"><div class="label">Buildings</div><div class="value">${DB.buildings.length}</div></div>
+        <div class="stat-card"><div class="label">Houses generated</div><div class="value">${DB.houses.length}</div></div>
+      </div>
+      <div style="margin-top:8px; display:flex; gap:8px;"><button class="btn secondary" id="ob-back3">Back</button><button class="btn" id="ob-complete">Complete onboarding</button></div>
+    `;
+  }
+  return `<div class="empty-state"><div class="ic">✅</div><h4>Onboarding complete</h4><p>Society status is now <strong>active</strong>. The rest of the app is unlocked (mirrors <code>onboarding_required: false</code> in GET /me).</p></div>`;
+}
+function wireOnboarding(){
+  const rerun = ()=>{ document.getElementById("onboarding-step-body").outerHTML = `<div id="onboarding-step-body">${renderOnboardingStep()}</div>`; wireOnboarding(); document.querySelector(".step-row").outerHTML = document.querySelector(".step-row").outerHTML; };
+  document.querySelectorAll('input[name="soctype"]').forEach(r=>r.addEventListener("change", e=>{ onboardingState.type = e.target.value; }));
+  const n1 = document.getElementById("ob-next1"); if (n1) n1.addEventListener("click", ()=>{ if(!onboardingState.type){toast("Select a type first");return;} onboardingState.step=2; renderOnboardingFull(); });
+  const b2 = document.getElementById("ob-back2"); if (b2) b2.addEventListener("click", ()=>{ onboardingState.step=1; renderOnboardingFull(); });
+  const n2 = document.getElementById("ob-next2"); if (n2) n2.addEventListener("click", ()=>{ onboardingState.step=3; renderOnboardingFull(); });
+  const b3 = document.getElementById("ob-back3"); if (b3) b3.addEventListener("click", ()=>{ onboardingState.step=2; renderOnboardingFull(); });
+  const cmp = document.getElementById("ob-complete"); if (cmp) cmp.addEventListener("click", ()=>{ DB.society.status="active"; onboardingState.step=4; renderOnboardingFull(); toast("Onboarding completed"); });
+}
+function renderOnboardingFull(){ document.getElementById("content").innerHTML = renderOnboarding(); wireOnboarding(); }
+
+/* ---- Houses ---- */
+let housesFilter = { status: "", building_id: "" };
+function renderHouses(param){
+  const { items } = mockApi.listHouses(housesFilter);
+  return `
+    <div class="panel">
+      <div class="panel-head">
+        <div><h3>Houses</h3><div class="desc">GET /houses — society_admin only, houses.read</div></div>
+        <div class="toolbar">
+          <select id="f-status">
+            <option value="">All statuses</option>
+            ${["empty","owned","rented","to_let","for_sale"].map(s=>`<option value="${s}" ${housesFilter.status===s?'selected':''}>${s}</option>`).join("")}
+          </select>
+          <select id="f-building">
+            <option value="">All buildings</option>
+            ${DB.buildings.map(b=>`<option value="${b.id}" ${housesFilter.building_id==b.id?'selected':''}>${b.name}</option>`).join("")}
+          </select>
+        </div>
+      </div>
+      <div class="panel-body pad0">
+        <table>
+          <thead><tr><th>House</th><th>Building</th><th>Status</th><th>Left empty on</th><th></th></tr></thead>
+          <tbody>
+            ${items.length ? items.map(h=>`
+              <tr class="clickable" data-house="${h.id}">
+                <td><strong>${h.display_code}</strong></td>
+                <td>${h.building_name||"—"}</td>
+                <td>${statusPill(h.status)}</td>
+                <td>${h.first_left_empty_on || "—"}</td>
+                <td><button class="btn ghost sm" data-view="${h.id}">View →</button></td>
+              </tr>`).join("") : `<tr class="empty-row"><td colspan="5">No houses match this filter.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div id="house-detail-slot"></div>
+  `;
+}
+function wireHouses(param){
+  document.getElementById("f-status").addEventListener("change", e=>{ housesFilter.status = e.target.value; refreshContent("houses"); });
+  document.getElementById("f-building").addEventListener("change", e=>{ housesFilter.building_id = e.target.value; refreshContent("houses"); });
+  document.querySelectorAll("[data-house],[data-view]").forEach(el=>{
+    el.addEventListener("click", ()=> openHouseDetail(Number(el.dataset.house || el.dataset.view)));
+  });
+}
+function refreshContent(path, param){ document.getElementById("content").innerHTML = renderPage(path, param); wirePage(path, param); }
+
+function openHouseDetail(houseId){
+  const { house, owner, tenant } = mockApi.getHouse(houseId);
+  const history = mockApi.houseHistory(houseId);
+  const modal = document.createElement("div");
+  modal.className = "modal-overlay";
+  modal.innerHTML = `
+    <div class="modal" style="width:560px;">
+      <div class="modal-head"><h3>${house.display_code} <span class="mock-tag">GET /houses/${houseId}</span></h3><button data-close>✕</button></div>
+      <div class="modal-body">
+        <div style="margin-bottom:14px;">${statusPill(house.status)} ${house.first_left_empty_on?`<span class="mock-tag">left empty on ${house.first_left_empty_on}</span>`:""}</div>
+        ${owner ? `
+          <h4 style="font-size:12.5px; text-transform:uppercase; color:var(--muted); letter-spacing:.03em;">Owner</h4>
+          <p><strong>${owner.full_name}</strong> — ${owner.email}<br>${owner.contact_number}${owner.persons_living!=null?` · ${owner.persons_living} persons living`:""}</p>
+        `: `<p style="color:var(--muted);">No current owner.</p>`}
+        ${tenant ? `
+          <h4 style="font-size:12.5px; text-transform:uppercase; color:var(--muted); letter-spacing:.03em; margin-top:10px;">Tenant</h4>
+          <p><strong>${tenant.full_name}</strong> — ${tenant.email||"—"}<br>${tenant.contact_number} · ${tenant.persons_living} persons living</p>
+        ` : ""}
+        <h4 style="font-size:12.5px; text-transform:uppercase; color:var(--muted); letter-spacing:.03em; margin-top:16px;">Status history</h4>
+        ${history.length ? `<ul class="timeline">${history.map(h=>`
+          <li><div class="t-status">${h.from_status} → ${h.to_status}</div><div class="t-time">${fmtDate(h.changed_at)}</div></li>`).join("")}</ul>` : `<p style="color:var(--muted); font-size:12.5px;">No history yet.</p>`}
+      </div>
+      <div class="modal-foot">
+        ${has("houses.update_status") ? `<button class="btn" id="ob-change-status">Change status</button>` : ""}
+        <button class="btn secondary" data-close>Close</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click", ()=>modal.remove()));
+  modal.addEventListener("click", e=>{ if (e.target===modal) modal.remove(); });
+  const changeBtn = modal.querySelector("#ob-change-status");
+  if (changeBtn) changeBtn.addEventListener("click", ()=>{ modal.remove(); openChangeStatusModal(houseId, house.status); });
+}
+
+function openChangeStatusModal(houseId, currentStatus){
+  const modal = document.createElement("div");
+  modal.className = "modal-overlay";
+  modal.innerHTML = `
+    <div class="modal">
+      <div class="modal-head"><h3>Change house status <span class="mock-tag">POST /houses/${houseId}/status</span></h3><button data-close>✕</button></div>
+      <div class="modal-body">
+        <div id="cs-error"></div>
+        <div class="field"><label>New status</label>
+          <select id="cs-status">
+            ${["owned","rented","to_let","for_sale"].filter(s=>s!==currentStatus||true).map(s=>`<option value="${s}">${s}</option>`).join("")}
+          </select>
+        </div>
+        <h4 style="font-size:12px; text-transform:uppercase; color:var(--muted);">Owner</h4>
+        <div class="field-row">
+          <div class="field"><label>Full name</label><input id="cs-owner-name" placeholder="Full name"></div>
+          <div class="field"><label>Email</label><input id="cs-owner-email" placeholder="owner@example.com"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Contact number</label><input id="cs-owner-contact" placeholder="+91-..."></div>
+          <div class="field" id="cs-owner-persons-wrap"><label>Persons living</label><input id="cs-owner-persons" type="number" min="0" placeholder="e.g. 3"></div>
+        </div>
+        <div id="cs-tenant-block" style="display:none;">
+          <h4 style="font-size:12px; text-transform:uppercase; color:var(--muted); margin-top:10px;">Tenant</h4>
+          <div class="field-row">
+            <div class="field"><label>Full name</label><input id="cs-tenant-name" placeholder="Full name"></div>
+            <div class="field"><label>Contact number</label><input id="cs-tenant-contact" placeholder="+91-..."></div>
+          </div>
+          <div class="field"><label>Persons living</label><input id="cs-tenant-persons" type="number" min="0" placeholder="e.g. 2"></div>
+        </div>
+      </div>
+      <div class="modal-foot"><button class="btn secondary" data-close>Cancel</button><button class="btn" id="cs-submit">Save</button></div>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click", ()=>modal.remove()));
+  const statusSel = modal.querySelector("#cs-status");
+  const toggle = ()=>{
+    const v = statusSel.value;
+    modal.querySelector("#cs-tenant-block").style.display = v==="rented" ? "block" : "none";
+    modal.querySelector("#cs-owner-persons-wrap").style.display = (v==="to_let"||v==="for_sale") ? "none" : "block";
+  };
+  statusSel.addEventListener("change", toggle); toggle();
+  modal.querySelector("#cs-submit").addEventListener("click", ()=>{
+    const v = statusSel.value;
+    const owner = {
+      full_name: modal.querySelector("#cs-owner-name").value.trim(),
+      email: modal.querySelector("#cs-owner-email").value.trim(),
+      contact_number: modal.querySelector("#cs-owner-contact").value.trim(),
+      persons_living: (v==="to_let"||v==="for_sale") ? null : Number(modal.querySelector("#cs-owner-persons").value || 0)
+    };
+    let tenant = null;
+    if (v === "rented"){
+      tenant = {
+        full_name: modal.querySelector("#cs-tenant-name").value.trim(),
+        contact_number: modal.querySelector("#cs-tenant-contact").value.trim(),
+        persons_living: Number(modal.querySelector("#cs-tenant-persons").value || 0)
+      };
+    }
+    if (!owner.full_name || !owner.email || !owner.contact_number){
+      modal.querySelector("#cs-error").innerHTML = `<div class="error-box">Please fill in all owner fields.</div>`; return;
+    }
+    try{
+      mockApi.changeHouseStatus(houseId, { to_status: v, owner, tenant });
+      modal.remove(); toast("House status updated"); refreshContent("houses");
+    }catch(err){
+      modal.querySelector("#cs-error").innerHTML = `<div class="error-box">${err.message}</div>`;
+    }
+  });
+}
+
+function statusPill(status){
+  const map = {
+    empty: "muted", owned: "ok", rented: "info", to_let: "warn", for_sale: "warn",
+    open: "danger", in_progress: "warn", resolved: "ok", closed: "muted", withdrawn: "muted", archived: "muted",
+    draft: "muted", published: "ok",
+    outstanding: "danger", paid: "ok", recorded: "ok", voided: "muted"
+  };
+  return `<span class="pill ${map[status]||'muted'}">${status.replace(/_/g," ")}</span>`;
+}
+function fmtDate(iso){ if(!iso) return "—"; const d = new Date(iso); return d.toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric"}) + " " + d.toLocaleTimeString(undefined,{hour:"2-digit",minute:"2-digit"}); }
+function fmtDateOnly(iso){ if(!iso) return "—"; return new Date(iso).toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric"}); }
+
+/* ---- Finance (admin) ---- */
+let financeTab = "rate";
+function renderFinance(param){
+  const isAdmin = CURRENT.portal === "admin";
+  const tabs = isAdmin ? ["rate","dues","expenses","reserve","analytics"] : ["mydues"];
+  if (!isAdmin) return renderResidentFinance();
+  return `
+    <div class="tabs">
+      ${tabs.map(t=>`<button class="tab ${financeTab===t?'active':''}" data-tab="${t}">${t[0].toUpperCase()+t.slice(1)}</button>`).join("")}
+    </div>
+    <div id="finance-tab-body">${renderFinanceTab()}</div>
+  `;
+}
+function renderFinanceTab(){
+  if (financeTab === "rate"){
+    const rate = mockApi.getRate();
+    return `
+      <div class="panel">
+        <div class="panel-head"><div><h3>Maintenance rate</h3><div class="desc">GET/POST /finance/rate — finance.manage_rate</div></div>
+          ${has("finance.manage_rate")?`<button class="btn sm" id="new-rate-btn">Set new rate</button>`:""}
+        </div>
+        <div class="panel-body">
+          <div class="stat-row" style="margin-bottom:14px;">
+            <div class="stat-card"><div class="label">Current rate</div><div class="value">₹${rate.current?rate.current.amount:"—"}</div><div class="sub">effective ${rate.current?rate.current.valid_from:"—"}</div></div>
+          </div>
+          <table>
+            <thead><tr><th>Amount</th><th>Effective from</th><th>Set on</th></tr></thead>
+            <tbody>${rate.history.map(r=>`<tr><td>₹${r.amount}</td><td>${r.valid_from}</td><td>${fmtDateOnly(r.created_at)}</td></tr>`).join("")}</tbody>
+          </table>
+        </div>
+      </div>
+      ${has("finance.manage_rate")?`
+      <div class="panel">
+        <div class="panel-head"><h3>Dues generation</h3><div class="desc">POST /finance/dues/generate</div></div>
+        <div class="panel-body"><p style="color:var(--muted); font-size:12.5px;">Manually trigger the same job the nightly worker runs on the society's due-day.</p><button class="btn secondary" id="gen-dues-btn">Run dues generation</button></div>
+      </div>`:""}
+    `;
+  }
+  if (financeTab === "dues"){
+    return `
+      <div class="panel">
+        <div class="panel-head"><h3>Dues & payments by house</h3><div class="desc">GET /finance/houses/{id}/dues · POST .../payments</div></div>
+        <div class="panel-body pad0">
+          <table>
+            <thead><tr><th>House</th><th>Status</th><th>Outstanding</th><th></th></tr></thead>
+            <tbody>
+              ${DB.houses.filter(h=>h.status!=="empty").map(h=>{
+                const d = mockApi.houseDues(h.id);
+                return `<tr><td>${h.display_code}</td><td>${statusPill(h.status)}</td><td>₹${d.outstanding_total}</td>
+                  <td><button class="btn ghost sm" data-dues="${h.id}">Manage →</button></td></tr>`;
+              }).join("")}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+  }
+  if (financeTab === "expenses"){
+    const cats = mockApi.expenseCategories();
+    const exp = mockApi.expenses();
+    return `
+      <div class="panel">
+        <div class="panel-head"><div><h3>Expenses</h3><div class="desc">GET/POST /finance/expenses</div></div>${has("finance.manage_expenses")?`<button class="btn sm" id="add-expense-btn">Record expense</button>`:""}</div>
+        <div class="panel-body pad0">
+          <table>
+            <thead><tr><th>Category</th><th>Amount</th><th>Description</th><th>Incurred on</th><th>Status</th></tr></thead>
+            <tbody>${exp.items.map(e=>{ const c = cats.find(x=>x.id===e.category_id); return `<tr><td>${c?c.name:e.category_id}</td><td>₹${e.amount}</td><td>${e.description||"—"}</td><td>${e.incurred_on}</td><td>${statusPill(e.status)}</td></tr>`; }).join("")}</tbody>
+          </table>
+        </div>
+      </div>`;
+  }
+  if (financeTab === "reserve"){
+    const r = mockApi.reserve();
+    return `
+      <div class="panel">
+        <div class="panel-head"><div><h3>Reserve ledger</h3><div class="desc">GET /finance/reserve — balance computed from full ledger</div></div><div class="stat-card" style="padding:8px 14px;"><div class="label">Balance</div><div class="value" style="font-size:18px;">₹${r.balance}</div></div></div>
+        <div class="panel-body pad0">
+          <table>
+            <thead><tr><th>Type</th><th>Direction</th><th>Amount</th><th>Description</th><th>Date</th></tr></thead>
+            <tbody>${r.entries.map(e=>`<tr><td style="text-transform:capitalize;">${e.entry_type}</td><td>${e.direction==='inflow'?'<span class="pill ok">inflow</span>':'<span class="pill danger">outflow</span>'}</td><td>₹${e.amount}</td><td>${e.description||"—"}</td><td>${e.occurred_on}</td></tr>`).join("")}</tbody>
+          </table>
+        </div>
+      </div>`;
+  }
+  if (financeTab === "analytics"){
+    const col = mockApi.analyticsCollection();
+    const arr = mockApi.analyticsArrears();
+    const expected = Number(col.expected)||1;
+    return `
+      <div class="stat-row">
+        <div class="stat-card"><div class="label">Expected</div><div class="value">₹${col.expected}</div></div>
+        <div class="stat-card"><div class="label">Collected</div><div class="value">₹${col.collected}</div></div>
+        <div class="stat-card"><div class="label">Outstanding</div><div class="value">₹${col.outstanding}</div></div>
+      </div>
+      <div class="panel"><div class="panel-head"><h3>Collection breakdown</h3></div>
+        <div class="panel-body">
+          <div class="bar-row"><div class="lbl">Collected</div><div class="bar-track"><div class="bar-fill" style="width:${(Number(col.collected)/expected*100).toFixed(0)}%; background:var(--ok);"></div></div><div class="val">₹${col.collected}</div></div>
+          <div class="bar-row"><div class="lbl">Outstanding</div><div class="bar-track"><div class="bar-fill" style="width:${(Number(col.outstanding)/expected*100).toFixed(0)}%; background:var(--danger);"></div></div><div class="val">₹${col.outstanding}</div></div>
+        </div>
+      </div>
+      <div class="panel"><div class="panel-head"><h3>Arrears by house</h3></div>
+        <div class="panel-body pad0">
+          <table><thead><tr><th>House</th><th>Outstanding</th><th>Months</th></tr></thead>
+          <tbody>${arr.houses.map(h=>{const house=DB.houses.find(x=>x.id===h.house_id); return `<tr><td>${house.display_code}</td><td>₹${h.outstanding_total}</td><td>${h.months_outstanding}</td></tr>`;}).join("")||`<tr class="empty-row"><td colspan="3">No arrears</td></tr>`}</tbody></table>
+        </div>
+      </div>`;
+  }
+  return "";
+}
+function wireFinance(param){
+  if (CURRENT.portal !== "admin") return wireResidentFinance();
+  document.querySelectorAll("[data-tab]").forEach(t=>t.addEventListener("click", ()=>{ financeTab = t.dataset.tab; refreshContent("finance"); }));
+  const newRateBtn = document.getElementById("new-rate-btn"); if (newRateBtn) newRateBtn.addEventListener("click", openSetRateModal);
+  const genDues = document.getElementById("gen-dues-btn"); if (genDues) genDues.addEventListener("click", ()=>toast("Dues generation run — 0 new dues (idempotent, mock)."));
+  const addExpense = document.getElementById("add-expense-btn"); if (addExpense) addExpense.addEventListener("click", openAddExpenseModal);
+  document.querySelectorAll("[data-dues]").forEach(b=>b.addEventListener("click", ()=>openDuesModal(Number(b.dataset.dues))));
+}
+function openSetRateModal(){
+  const modal = document.createElement("div"); modal.className="modal-overlay";
+  modal.innerHTML = `<div class="modal"><div class="modal-head"><h3>Set new rate <span class="mock-tag">POST /finance/rate</span></h3><button data-close>✕</button></div>
+    <div class="modal-body"><div id="rate-error"></div>
+      <div class="field"><label>Amount (₹)</label><input id="rate-amount" type="number" placeholder="2500.00"></div>
+      <div class="field"><label>Valid from (1st of month)</label><input id="rate-date" type="date" value="2026-08-01"></div>
+    </div>
+    <div class="modal-foot"><button class="btn secondary" data-close>Cancel</button><button class="btn" id="rate-submit">Save</button></div></div>`;
+  document.body.appendChild(modal);
+  modal.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click", ()=>modal.remove()));
+  modal.querySelector("#rate-submit").addEventListener("click", ()=>{
+    try{
+      mockApi.setRate(modal.querySelector("#rate-amount").value, modal.querySelector("#rate-date").value);
+      modal.remove(); toast("Rate updated"); refreshContent("finance");
+    }catch(err){ modal.querySelector("#rate-error").innerHTML = `<div class="error-box">${err.message}</div>`; }
+  });
+}
+function openAddExpenseModal(){
+  const cats = mockApi.expenseCategories();
+  const modal = document.createElement("div"); modal.className="modal-overlay";
+  modal.innerHTML = `<div class="modal"><div class="modal-head"><h3>Record expense <span class="mock-tag">POST /finance/expenses</span></h3><button data-close>✕</button></div>
+    <div class="modal-body"><div id="exp-error"></div>
+      <div class="field"><label>Category</label><select id="exp-cat">${cats.map(c=>`<option value="${c.id}">${c.name}</option>`).join("")}</select></div>
+      <div class="field"><label>Amount (₹)</label><input id="exp-amount" type="number" placeholder="1000.00"></div>
+      <div class="field"><label>Incurred on</label><input id="exp-date" type="date" value="${todayISO()}"></div>
+      <div class="field"><label>Description</label><textarea id="exp-desc" rows="2" placeholder="Optional"></textarea></div>
+    </div>
+    <div class="modal-foot"><button class="btn secondary" data-close>Cancel</button><button class="btn" id="exp-submit">Save</button></div></div>`;
+  document.body.appendChild(modal);
+  modal.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click", ()=>modal.remove()));
+  modal.querySelector("#exp-submit").addEventListener("click", ()=>{
+    try{
+      mockApi.addExpense({ category_id: modal.querySelector("#exp-cat").value, amount: modal.querySelector("#exp-amount").value, incurred_on: modal.querySelector("#exp-date").value, description: modal.querySelector("#exp-desc").value });
+      modal.remove(); toast("Expense recorded"); refreshContent("finance");
+    }catch(err){ modal.querySelector("#exp-error").innerHTML = `<div class="error-box">${err.message}</div>`; }
+  });
+}
+function openDuesModal(houseId){
+  const house = DB.houses.find(h=>h.id===houseId);
+  const d = mockApi.houseDues(houseId);
+  const modal = document.createElement("div"); modal.className="modal-overlay";
+  modal.innerHTML = `<div class="modal"><div class="modal-head"><h3>${house.display_code} — Dues <span class="mock-tag">GET /finance/houses/${houseId}/dues</span></h3><button data-close>✕</button></div>
+    <div class="modal-body">
+      <div id="dues-error"></div>
+      <div class="stat-card" style="margin-bottom:14px;"><div class="label">Outstanding total</div><div class="value">₹${d.outstanding_total}</div></div>
+      <table><thead><tr><th>Period</th><th>Amount</th><th>Status</th></tr></thead>
+      <tbody>${d.history.map(x=>`<tr><td>${x.period_month}/${x.period_year}</td><td>₹${x.amount_due}</td><td>${statusPill(x.status)} ${x.is_overdue?'<span class="pill danger">overdue</span>':''}</td></tr>`).join("")}</tbody></table>
+      ${d.outstanding.length && has("finance.record_payment") ? `
+      <div style="margin-top:16px; padding-top:14px; border-top:1px solid var(--border);">
+        <h4 style="font-size:12.5px; text-transform:uppercase; color:var(--muted);">Record payment</h4>
+        <div class="field-row">
+          <div class="field"><label>Method</label><select id="pay-method"><option>cash</option><option>cheque</option><option selected>bank_transfer</option><option>online</option><option>other</option></select></div>
+          <div class="field"><label>Months to settle</label><input id="pay-months" type="number" min="1" max="${d.outstanding.length}" value="${d.outstanding.length}"></div>
+        </div>
+        <div class="field"><label>Reference (optional)</label><input id="pay-ref" placeholder="UTR / cheque no."></div>
+        <button class="btn" id="pay-submit">Record payment</button>
+      </div>` : ""}
+    </div>
+    <div class="modal-foot"><button class="btn secondary" data-close>Close</button></div></div>`;
+  document.body.appendChild(modal);
+  modal.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click", ()=>modal.remove()));
+  const submit = modal.querySelector("#pay-submit");
+  if (submit) submit.addEventListener("click", ()=>{
+    try{
+      mockApi.recordPayment(houseId, { method: modal.querySelector("#pay-method").value, months: Number(modal.querySelector("#pay-months").value), reference: modal.querySelector("#pay-ref").value });
+      modal.remove(); toast("Payment recorded"); refreshContent("finance");
+    }catch(err){ modal.querySelector("#dues-error").innerHTML = `<div class="error-box">${err.message}</div>`; }
+  });
+}
+
+/* =========================================================================
+   6. RESIDENT SCREENS
+   ========================================================================= */
+function renderResidentDashboard(){
+  const u = currentUser();
+  const houseId = u.houseId;
+  const d = houseId ? mockApi.houseDues(houseId) : null;
+  const notices = mockApi.listNotices("active").slice(0,3);
+  const openComplaints = DB.complaints.filter(c=>c.raised_by===u.id && ["open","in_progress"].includes(c.status)).length;
+  return `
+    <div class="stat-row">
+      <div class="stat-card"><div class="label">My outstanding dues</div><div class="value">₹${d?d.outstanding_total:"0.00"}</div><div class="sub">${d?d.outstanding.length:0} month(s) pending</div></div>
+      <div class="stat-card"><div class="label">My open complaints</div><div class="value">${openComplaints}</div></div>
+      <div class="stat-card"><div class="label">Active notices</div><div class="value">${mockApi.listNotices("active").length}</div></div>
+      <div class="stat-card"><div class="label">Unread notifications</div><div class="value">${mockApi.unreadCount(u.id)}</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>Latest notices</h3></div>
+      <div class="panel-body pad0">
+        ${notices.length ? notices.map(n=>`
+          <div style="padding:13px 18px; border-bottom:1px solid #eef1f6;">
+            <div style="font-weight:700; font-size:13px;">${n.is_pinned?'📌 ':''}${n.title}</div>
+            <div style="font-size:11.5px; color:var(--muted); margin-top:3px;">${fmtDate(n.published_at)}</div>
+          </div>`).join("") : `<div class="empty-row" style="padding:20px; text-align:center; color:var(--muted);">No active notices</div>`}
+      </div>
+    </div>`;
+}
+function wireResidentDashboard(){}
+
+function renderMyHouse(){
+  const u = currentUser();
+  if (!u.houseId) return `<div class="empty-state"><div class="ic">🏠</div><h4>No house linked</h4></div>`;
+  const { house, owner, tenant } = mockApi.getHouse(u.houseId);
+  const d = mockApi.houseDues(u.houseId);
+  return `
+    <div class="panel">
+      <div class="panel-head"><div><h3>${house.display_code}</h3><div class="desc">Your house — served via Finance/Complaints per house-occupancy.md's resident-view note</div></div>${statusPill(house.status)}</div>
+      <div class="panel-body">
+        <div class="field-row">
+          <div><h4 style="font-size:12px; text-transform:uppercase; color:var(--muted);">Owner</h4><p>${owner?owner.full_name:"—"}<br>${owner?owner.email:""}</p></div>
+          ${tenant?`<div><h4 style="font-size:12px; text-transform:uppercase; color:var(--muted);">Tenant</h4><p>${tenant.full_name}<br>${tenant.contact_number}</p></div>`:""}
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>My dues</h3><div class="desc">GET /finance/houses/{id}/dues — resident scope: own house only</div></div>
+      <div class="panel-body pad0">
+        <table><thead><tr><th>Period</th><th>Amount</th><th>Status</th></tr></thead>
+        <tbody>${d.history.map(x=>`<tr><td>${x.period_month}/${x.period_year}</td><td>₹${x.amount_due}</td><td>${statusPill(x.status)}</td></tr>`).join("")}</tbody></table>
+      </div>
+    </div>`;
+}
+function wireMyHouse(){}
+
+function renderResidentFinance(){
+  const u = currentUser();
+  if (!u.houseId) return `<div class="empty-state"><div class="ic">💰</div><h4>No house linked</h4></div>`;
+  const d = mockApi.houseDues(u.houseId);
+  return `
+    <div class="stat-row">
+      <div class="stat-card"><div class="label">Outstanding total</div><div class="value">₹${d.outstanding_total}</div></div>
+      <div class="stat-card"><div class="label">Months pending</div><div class="value">${d.outstanding.length}</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>Dues history</h3><div class="desc">finance.read — resident may view own house's dues only</div></div>
+      <div class="panel-body pad0">
+        <table><thead><tr><th>Period</th><th>Amount</th><th>Status</th><th>Paid on</th></tr></thead>
+        <tbody>${d.history.map(x=>`<tr><td>${x.period_month}/${x.period_year}</td><td>₹${x.amount_due}</td><td>${statusPill(x.status)}</td><td>${x.paid_at?fmtDateOnly(x.paid_at):"—"}</td></tr>`).join("")}</tbody></table>
+      </div>
+    </div>`;
+}
+function wireResidentFinance(){}
+
+/* =========================================================================
+   7. COMPLAINTS (shared, behavior varies by permissions)
+   ========================================================================= */
+let complaintsFilter = { status: "" };
+function renderComplaints(param){
+  if (param) return renderComplaintDetail(Number(param));
+  const isAdminView = has("complaints.read_all");
+  const u = currentUser();
+  const scope = isAdminView ? null : { houseIds: DB.houses.filter(h=>DB.occupancies.some(o=>o.house_id===h.id && o.user_id===u.id && o.is_current)).map(h=>h.id) };
+  const { items } = mockApi.listComplaints(complaintsFilter, scope);
+  return `
+    <div class="panel">
+      <div class="panel-head">
+        <div><h3>Complaints</h3><div class="desc">GET /complaints — ${isAdminView?'complaints.read_all (society-wide)':'complaints.read (own house only)'}</div></div>
+        <div class="toolbar">
+          <select id="cf-status"><option value="">All statuses</option>${["open","in_progress","resolved","closed","withdrawn","archived"].map(s=>`<option value="${s}" ${complaintsFilter.status===s?'selected':''}>${s}</option>`).join("")}</select>
+          ${has("complaints.create") ? `<button class="btn sm" id="raise-complaint-btn">Raise complaint</button>` : ""}
+        </div>
+      </div>
+      <div class="panel-body pad0">
+        <table>
+          <thead><tr><th>Reference</th><th>Title</th><th>House</th><th>Category</th><th>Status</th><th>Updated</th></tr></thead>
+          <tbody>
+            ${items.length ? items.map(c=>`
+              <tr class="clickable" data-complaint="${c.id}">
+                <td>${c.reference}</td><td>${c.title}</td><td>${c.house_display_code||"—"}</td><td>${c.category_name}</td><td>${statusPill(c.status)}</td><td>${fmtDate(c.updated_at)}</td>
+              </tr>`).join("") : `<tr class="empty-row"><td colspan="6">No complaints found.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+}
+function wireComplaints(param){
+  if (param) return wireComplaintDetail(Number(param));
+  document.getElementById("cf-status").addEventListener("change", e=>{ complaintsFilter.status = e.target.value; refreshContent("complaints"); });
+  const raise = document.getElementById("raise-complaint-btn"); if (raise) raise.addEventListener("click", openRaiseComplaintModal);
+  document.querySelectorAll("[data-complaint]").forEach(el=>el.addEventListener("click", ()=>{ location.hash = "#/complaints/"+el.dataset.complaint; }));
+}
+function openRaiseComplaintModal(){
+  const cats = mockApi.complaintCategories();
+  const modal = document.createElement("div"); modal.className="modal-overlay";
+  modal.innerHTML = `<div class="modal"><div class="modal-head"><h3>Raise a complaint <span class="mock-tag">POST /complaints</span></h3><button data-close>✕</button></div>
+    <div class="modal-body"><div id="rc-error"></div>
+      <div class="field"><label>Category</label><select id="rc-cat">${cats.map(c=>`<option value="${c.id}">${c.name}</option>`).join("")}</select></div>
+      <div class="field"><label>Title</label><input id="rc-title" placeholder="Short summary"></div>
+      <div class="field"><label>Description</label><textarea id="rc-desc" rows="4" placeholder="Describe the issue in detail"></textarea></div>
+    </div>
+    <div class="modal-foot"><button class="btn secondary" data-close>Cancel</button><button class="btn" id="rc-submit">Submit</button></div></div>`;
+  document.body.appendChild(modal);
+  modal.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click", ()=>modal.remove()));
+  modal.querySelector("#rc-submit").addEventListener("click", ()=>{
+    const u = currentUser();
+    const title = modal.querySelector("#rc-title").value.trim();
+    const desc = modal.querySelector("#rc-desc").value.trim();
+    if (!title || !desc){ modal.querySelector("#rc-error").innerHTML = `<div class="error-box">Title and description are required.</div>`; return; }
+    try{
+      const c = mockApi.createComplaint({ category_id: modal.querySelector("#rc-cat").value, title, description: desc }, u.id, u.houseId);
+      notifyAdmins("complaint_new", "New complaint raised", `${c.reference} — ${c.title} (${c.house_display_code})`, "complaint", c.id);
+      modal.remove(); toast("Complaint raised"); location.hash = "#/complaints";
+      refreshContent("complaints");
+    }catch(err){ modal.querySelector("#rc-error").innerHTML = `<div class="error-box">${err.message}</div>`; }
+  });
+}
+function notifyAdmins(type,title,body,entityType,entityId){
+  DB.users.forEach(u=>{ if (u.available_portals.includes("admin")) DB.notifications.unshift({ id: nextId(), type, title, body, entity_type: entityType, entity_id: entityId, created_at: nowISO(), for_user: u.id, read: false }); });
+}
+function renderComplaintDetail(id){
+  const c = mockApi.getComplaint(id);
+  const u = currentUser();
+  const isRaiser = c.raised_by === u.id;
+  const isAdmin = has("complaints.update_status");
+  return `
+    <button class="btn ghost sm" id="back-to-list" style="margin-bottom:12px;">← Back to complaints</button>
+    <div class="panel">
+      <div class="panel-head">
+        <div><h3>${c.title}</h3><div class="desc">${c.reference} · ${c.house_display_code} · ${c.category_name}</div></div>
+        ${statusPill(c.status)}
+      </div>
+      <div class="panel-body">
+        <p>${c.description}</p>
+        <div style="display:flex; gap:8px; margin:14px 0; flex-wrap:wrap;">
+          ${isRaiser && c.status==='open' ? `<button class="btn secondary sm" id="withdraw-btn">Withdraw</button>` : ""}
+          ${isAdmin && c.status==='open' ? `<button class="btn sm" id="start-progress-btn">Start progress</button>` : ""}
+          ${isAdmin && c.status==='in_progress' ? `<button class="btn sm" id="resolve-btn">Resolve with proof</button>` : ""}
+          ${isAdmin && c.status==='resolved' ? `<button class="btn sm" id="close-btn">Close</button><button class="btn secondary sm" id="reopen-btn">Reopen</button>` : ""}
+        </div>
+        <h4 style="font-size:12px; text-transform:uppercase; color:var(--muted); margin-top:16px;">Timeline</h4>
+        <ul class="timeline">
+          ${c.timeline.map(t=>`<li><div class="t-status">${t.from_status?`${t.from_status} → `:''}${t.to_status}</div>${t.note?`<div class="t-note">${t.note}</div>`:''}<div class="t-time">${fmtDate(t.created_at)}</div></li>`).join("")}
+        </ul>
+        ${c.images.length ? `<h4 style="font-size:12px; text-transform:uppercase; color:var(--muted); margin-top:16px;">Images</h4>${c.images.map(i=>`<span class="file-chip">${i.kind==='proof'?'📎':'🖼️'} ${i.filename||('doc-'+i.vault_document_id)}</span>`).join("")}` : ""}
+      </div>
+    </div>`;
+}
+function wireComplaintDetail(id){
+  document.getElementById("back-to-list").addEventListener("click", ()=>{ location.hash="#/complaints"; });
+  const w = document.getElementById("withdraw-btn"); if (w) w.addEventListener("click", ()=>{ try{ mockApi.withdrawComplaint(id, currentUser().id); toast("Complaint withdrawn"); refreshContent("complaints", String(id)); }catch(e){ toast(e.message); } });
+  const sp = document.getElementById("start-progress-btn"); if (sp) sp.addEventListener("click", ()=>{ mockApi.changeComplaintStatus(id, "in_progress", "Acknowledged, looking into it."); toast("Moved to in progress"); refreshContent("complaints", String(id)); });
+  const rs = document.getElementById("resolve-btn"); if (rs) rs.addEventListener("click", ()=>openResolveModal(id));
+  const cl = document.getElementById("close-btn"); if (cl) cl.addEventListener("click", ()=>{ mockApi.changeComplaintStatus(id, "closed"); toast("Complaint closed"); refreshContent("complaints", String(id)); });
+  const ro = document.getElementById("reopen-btn"); if (ro) ro.addEventListener("click", ()=>{ mockApi.changeComplaintStatus(id, "in_progress", "Reopened for further work."); toast("Reopened"); refreshContent("complaints", String(id)); });
+}
+function openResolveModal(id){
+  const modal = document.createElement("div"); modal.className="modal-overlay";
+  modal.innerHTML = `<div class="modal"><div class="modal-head"><h3>Resolve complaint <span class="mock-tag">POST /complaints/${id}/resolve</span></h3><button data-close>✕</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Note</label><textarea id="res-note" rows="3" placeholder="What was done to resolve this?"></textarea></div>
+      <div class="field"><label>Proof image (optional)</label><input type="file" id="res-file"></div>
+    </div>
+    <div class="modal-foot"><button class="btn secondary" data-close>Cancel</button><button class="btn" id="res-submit">Mark resolved</button></div></div>`;
+  document.body.appendChild(modal);
+  modal.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click", ()=>modal.remove()));
+  modal.querySelector("#res-submit").addEventListener("click", ()=>{
+    const file = modal.querySelector("#res-file").files[0];
+    mockApi.resolveComplaint(id, modal.querySelector("#res-note").value, file ? [file.name] : []);
+    modal.remove(); toast("Complaint resolved"); refreshContent("complaints", String(id));
+  });
+}
+
+/* =========================================================================
+   8. NOTICE BOARD
+   ========================================================================= */
+let noticesScope = "active";
+function renderNotices(param){
+  if (param) return renderNoticeDetail(Number(param));
+  const isManager = has("notices.publish");
+  const items = noticesScope === "archive" ? mockApi.archiveNotices() : mockApi.listNotices(isManager && noticesScope!=='mine' ? undefined : "active");
+  const filtered = isManager ? (noticesScope==="draft" ? DB.notices.filter(n=>n.status==="draft") : items) : items;
+  return `
+    <div class="panel">
+      <div class="panel-head">
+        <div><h3>Notice Board</h3><div class="desc">GET /notices — ${isManager?'admin can filter by status/scope':'resident always sees the active feed'}</div></div>
+        <div class="toolbar">
+          ${isManager ? `
+            <select id="nb-scope">
+              <option value="active" ${noticesScope==='active'?'selected':''}>Active feed</option>
+              <option value="draft" ${noticesScope==='draft'?'selected':''}>Drafts</option>
+              <option value="archive" ${noticesScope==='archive'?'selected':''}>Archive</option>
+            </select>
+            <button class="btn sm" id="compose-notice-btn">Compose notice</button>
+          ` : ""}
+        </div>
+      </div>
+      <div class="panel-body pad0">
+        ${filtered.length ? filtered.map(n=>`
+          <div class="clickable" data-notice="${n.id}" style="padding:14px 18px; border-bottom:1px solid #eef1f6; display:flex; justify-content:space-between; align-items:center; gap:10px;">
+            <div>
+              <div style="font-weight:700; font-size:13.5px;">${n.is_pinned?'📌 ':''}${n.title}</div>
+              <div style="font-size:11.5px; color:var(--muted); margin-top:3px;">
+                ${n.status==='published'?`Published ${fmtDate(n.published_at)}`:n.status==='draft'?'Draft — not yet published':`Withdrawn ${fmtDate(n.withdrawn_at)}`}
+                ${n.expires_at?` · expires ${fmtDateOnly(n.expires_at)}`:''} · ${n.attachments.length} attachment(s)
+              </div>
+            </div>
+            <div style="display:flex; gap:6px; align-items:center;">
+              ${statusPill(n.status)}
+              ${!isManager && !n.readBy.includes(currentUser().id) ? `<span class="pill danger">unread</span>` : ""}
+            </div>
+          </div>`).join("") : `<div style="padding:30px; text-align:center; color:var(--muted);">No notices here.</div>`}
+      </div>
+    </div>
+    ${!isManager ? `<div style="margin-top:10px;"><button class="btn secondary sm" id="mark-all-read-notices">Mark all as read</button></div>` : ""}
+  `;
+}
+function wireNotices(param){
+  if (param) return wireNoticeDetail(Number(param));
+  const scopeSel = document.getElementById("nb-scope"); if (scopeSel) scopeSel.addEventListener("change", e=>{ noticesScope = e.target.value; refreshContent("notices"); });
+  const compose = document.getElementById("compose-notice-btn"); if (compose) compose.addEventListener("click", openComposeNoticeModal);
+  document.querySelectorAll("[data-notice]").forEach(el=>el.addEventListener("click", ()=>{ location.hash = "#/notices/"+el.dataset.notice; }));
+  const markAll = document.getElementById("mark-all-read-notices"); if (markAll) markAll.addEventListener("click", ()=>{ DB.notices.forEach(n=>{ if(n.status==='published' && !n.readBy.includes(currentUser().id)) n.readBy.push(currentUser().id); }); toast("All notices marked read"); refreshContent("notices"); });
+}
+function openComposeNoticeModal(){
+  const modal = document.createElement("div"); modal.className="modal-overlay";
+  modal.innerHTML = `<div class="modal" style="width:560px;"><div class="modal-head"><h3>Compose notice <span class="mock-tag">POST /notices</span></h3><button data-close>✕</button></div>
+    <div class="modal-body"><div id="cn-error"></div>
+      <div class="field"><label>Title</label><input id="cn-title" placeholder="Notice title"></div>
+      <div class="field"><label>Body</label>
+        <div class="rich-toolbar">
+          <button type="button" data-cmd="bold"><b>B</b></button>
+          <button type="button" data-cmd="italic"><i>I</i></button>
+          <button type="button" data-cmd="insertUnorderedList">• List</button>
+        </div>
+        <div id="cn-body" contenteditable="true">Write your notice here...</div>
+        <div class="helptext">Sanitized server-side on submit — only a safe tag allow-list survives (per notice-board.md).</div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Expires at (optional)</label><input id="cn-expires" type="datetime-local"></div>
+        <div class="field"><label>&nbsp;</label><div class="checklist"><input type="checkbox" id="cn-pin"><label for="cn-pin">Pin to top</label></div></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn secondary" data-close>Cancel</button>
+      <button class="btn secondary" id="cn-draft">Save as draft</button>
+      <button class="btn" id="cn-publish">Publish</button>
+    </div></div>`;
+  document.body.appendChild(modal);
+  modal.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click", ()=>modal.remove()));
+  modal.querySelectorAll("[data-cmd]").forEach(b=>b.addEventListener("click", ()=>{ document.execCommand(b.dataset.cmd); modal.querySelector("#cn-body").focus(); }));
+  const submit = (publish)=>{
+    const title = modal.querySelector("#cn-title").value.trim();
+    const body = modal.querySelector("#cn-body").innerHTML;
+    if (!title){ modal.querySelector("#cn-error").innerHTML = `<div class="error-box">Title is required.</div>`; return; }
+    try{
+      mockApi.createNotice({ title, body, is_pinned: modal.querySelector("#cn-pin").checked, expires_at: modal.querySelector("#cn-expires").value || null, publish });
+      modal.remove(); toast(publish?"Notice published":"Draft saved"); refreshContent("notices");
+    }catch(err){ modal.querySelector("#cn-error").innerHTML = `<div class="error-box">${err.message}</div>`; }
+  };
+  modal.querySelector("#cn-draft").addEventListener("click", ()=>submit(false));
+  modal.querySelector("#cn-publish").addEventListener("click", ()=>submit(true));
+}
+function renderNoticeDetail(id){
+  const isManager = has("notices.publish");
+  let n;
+  try{ n = mockApi.openNotice(id, currentUser().id); }
+  catch(e){ return `<div class="empty-state"><div class="ic">🔍</div><h4>Notice not found</h4></div>`; }
+  const receipts = isManager && has("notices.read_receipts") ? mockApi.noticeReceipts(id) : null;
+  return `
+    <button class="btn ghost sm" id="back-to-notices" style="margin-bottom:12px;">← Back to notices</button>
+    <div class="panel">
+      <div class="panel-head">
+        <div><h3>${n.is_pinned?'📌 ':''}${n.title}</h3><div class="desc">${n.status==='published'?`Published ${fmtDate(n.published_at)}`:n.status}</div></div>
+        ${statusPill(n.status)}
+      </div>
+      <div class="panel-body">
+        <div class="notice-body-render">${n.body}</div>
+        ${n.attachments.length ? `<div style="margin-top:12px;">${n.attachments.map(a=>`<span class="file-chip">📎 ${a.filename}</span>`).join("")}</div>` : ""}
+        ${isManager ? `
+        <div style="display:flex; gap:8px; margin-top:16px; padding-top:14px; border-top:1px solid var(--border);">
+          ${n.status==='draft' ? `<button class="btn sm" id="publish-notice-btn">Publish</button>` : ""}
+          ${n.status!=='withdrawn' ? `<button class="btn secondary sm" id="withdraw-notice-btn">Withdraw</button>` : ""}
+          ${n.status==='published' ? `<button class="btn secondary sm" id="pin-notice-btn">${n.is_pinned?'Unpin':'Pin'}</button>` : ""}
+        </div>` : ""}
+      </div>
+    </div>
+    ${receipts ? `
+    <div class="panel">
+      <div class="panel-head"><h3>Read receipts</h3><div class="desc">GET /notices/${id}/receipts — scoped to current owners</div></div>
+      <div class="panel-body">
+        <div class="bar-row"><div class="lbl">Read</div><div class="bar-track"><div class="bar-fill" style="width:${receipts.total_owners?(receipts.read_count/receipts.total_owners*100).toFixed(0):0}%; background:var(--ok);"></div></div><div class="val">${receipts.read_count}/${receipts.total_owners}</div></div>
+      </div>
+    </div>` : ""}
+  `;
+}
+function wireNoticeDetail(id){
+  document.getElementById("back-to-notices").addEventListener("click", ()=>{ location.hash="#/notices"; });
+  const pub = document.getElementById("publish-notice-btn"); if (pub) pub.addEventListener("click", ()=>{ mockApi.publishNotice(id); toast("Notice published"); refreshContent("notices", String(id)); });
+  const wd = document.getElementById("withdraw-notice-btn"); if (wd) wd.addEventListener("click", ()=>{ mockApi.withdrawNotice(id); toast("Notice withdrawn"); refreshContent("notices", String(id)); });
+  const pin = document.getElementById("pin-notice-btn"); if (pin) pin.addEventListener("click", ()=>{ const n = DB.notices.find(x=>x.id===id); mockApi.updateNotice(id, { is_pinned: !n.is_pinned }); refreshContent("notices", String(id)); });
+}
+
+/* =========================================================================
+   9. NOTIFICATIONS
+   ========================================================================= */
+const NOTIF_ICONS = { complaint_new:"🛠️", complaint_update:"🔄", complaint_withdrawn:"↩️", notice:"📣", maintenance_due:"💰" };
+function renderNotifications(){
+  const u = currentUser();
+  const { items, unread_count } = mockApi.listNotifications(u.id);
+  return `
+    <div class="panel">
+      <div class="panel-head">
+        <div><h3>Notifications</h3><div class="desc">GET /notifications — unread-only feed</div></div>
+        ${items.length ? `<button class="btn secondary sm" id="mark-all-notif-btn">Mark all read (${unread_count})</button>` : ""}
+      </div>
+      <div class="panel-body pad0">
+        ${items.length ? items.map(n=>`
+          <div class="notif-item">
+            <div class="notif-ic">${NOTIF_ICONS[n.type]||"🔔"}</div>
+            <div class="notif-body">
+              <div class="n-title">${n.title}</div>
+              <div class="n-text">${n.body}</div>
+              <div class="n-time">${fmtDate(n.created_at)}</div>
+            </div>
+            <button class="btn ghost sm" data-mark-read="${n.id}">Mark read</button>
+          </div>`).join("") : `<div class="empty-state"><div class="ic">🎉</div><h4>You're all caught up</h4></div>`}
+      </div>
+    </div>`;
+}
+function wireNotifications(){
+  document.querySelectorAll("[data-mark-read]").forEach(b=>b.addEventListener("click", ()=>{ mockApi.markRead(Number(b.dataset.markRead)); refreshContent("notifications"); }));
+  const markAll = document.getElementById("mark-all-notif-btn"); if (markAll) markAll.addEventListener("click", ()=>{ mockApi.markAllRead(currentUser().id); toast("All notifications cleared"); refreshContent("notifications"); });
+}
+
+</script>
+</body>
+</html>

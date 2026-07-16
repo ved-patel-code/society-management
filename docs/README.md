@@ -18,6 +18,16 @@ Start here. Read the foundation docs in order, then dive into individual modules
 ## Platform Foundation (`platform/`)
 - [platform/platform-foundation.md](platform/platform-foundation.md) — ✅ designed. The always-on bedrock (auth, users, roles/permissions, societies, module allocation, tenant scoping) that every module depends on.
 
+## API reference (`api/`)
+Developer-facing endpoint contracts (request/response shapes, every error case) for building a client. Excludes super-admin-only endpoints.
+- [api/auth.md](api/auth.md) — login, refresh, logout, change-password, forgot-password, `GET /me`.
+- [api/onboarding.md](api/onboarding.md) — society structure setup: type selection, buildings/floors/rows, numbering, complete, and post-onboarding edits.
+- [api/house-occupancy.md](api/house-occupancy.md) — house listing, status lifecycle, owner/tenant occupancy, status history, ID-proof upload.
+- [api/finance.md](api/finance.md) — maintenance rate, dues/collection/prepaid, expenses, reserve ledger, analytics.
+- [api/complaints.md](api/complaints.md) — categories, raise/edit/withdraw, admin status workflow + resolve, report/proof images.
+- [api/notice-board.md](api/notice-board.md) — compose/publish/withdraw, resident feed, attachments, mark-as-read, admin read receipts + archive.
+- [api/notifications.md](api/notifications.md) — unread feed, unread-count badge, mark-read/read-all, admin reminder-cadence config.
+
 ## Module design docs (`modules/`)
 Written one at a time, before building. Order after the foundation: **Onboarding → House & Occupancy → Vault → Finance → Complaints → Notice Board → Notifications**. **All ✅ designed** — the design phase is complete; implementation (backend first) is next.
 - [modules/onboarding.md](modules/onboarding.md) — ✅ designed · 🛠️ **built** ([as-built](implemented/onboarding.md)). Society structure mapping (buildings/floors/houses or rows/houses), 3 numbering modes, blocking resumable wizard.

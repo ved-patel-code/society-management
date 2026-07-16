@@ -5,6 +5,7 @@ shape the response (docs/03 §2). All logic lives in :class:`AuthService` /
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from app.core.db import get_session
@@ -46,6 +47,30 @@ def login(
     result = AuthService(session).login(
         email=body.email,
         password=body.password,
+        user_agent=_user_agent(request),
+        ip=_client_ip(request),
+    )
+    return LoginResponse(
+        access_token=result.access_token,
+        refresh_token=result.refresh_token,
+        password_state=result.password_state,
+        available_portals=result.available_portals,
+    )
+
+
+@router.post("/token", response_model=LoginResponse, include_in_schema=False)
+def login_via_oauth2_form(
+    request: Request,
+    form: OAuth2PasswordRequestForm = Depends(),
+    session: Session = Depends(get_session),
+) -> LoginResponse:
+    """Swagger-only alias for :func:`login`. Lets the "Authorize" dialog's
+    OAuth2 password form (email in ``username``) issue a token, so it can be
+    pasted straight into requests. Not part of the public API — the real
+    client contract is the JSON ``POST /auth/login`` above."""
+    result = AuthService(session).login(
+        email=form.username,
+        password=form.password,
         user_agent=_user_agent(request),
         ip=_client_ip(request),
     )
