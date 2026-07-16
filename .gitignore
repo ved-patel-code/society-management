@@ -29,6 +29,14 @@ htmlcov/
 **/pgdata/
 **/miniodata/
 
+# --- Node / frontend (Vite + React) ---
+node_modules/
+frontend/dist/
+frontend/dev-dist/
+frontend/.vite/
+frontend/.env.local
+*.tsbuildinfo
+
 # --- IDE / OS ---
 .idea/
 .vscode/
