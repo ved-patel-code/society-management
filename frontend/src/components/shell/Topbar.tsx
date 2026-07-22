@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { BellButton } from "@/components/shell/BellButton";
 import { ThemeToggle } from "@/components/shell/ThemeToggle";
+import { UserMenu } from "@/components/shell/UserMenu";
 import { IfModule } from "@/components/common/IfModule";
 import { titleForPath } from "@/components/shell/navConfig";
 
@@ -33,6 +34,8 @@ export function Topbar({ onOpenSidebar }: TopbarProps) {
           <BellButton />
         </IfModule>
         <ThemeToggle />
+        {/* Account menu (Logout / Switch portal) — always reachable, incl. mobile. */}
+        <UserMenu variant="topbar" />
       </div>
     </header>
   );

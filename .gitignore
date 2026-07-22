@@ -4,6 +4,10 @@
 !*.env.example
 !*.env.template
 
+# Local test/society credentials — never commit
+*CREDENTIALS*.txt
+SHARNAM_DUPLEX_CREDENTIALS.txt
+
 # --- Python ---
 __pycache__/
 *.py[cod]
