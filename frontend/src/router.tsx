@@ -7,6 +7,8 @@ import { LoginPage } from "@/pages/auth/LoginPage";
 import { ChoosePortalPage } from "@/pages/auth/ChoosePortalPage";
 import { ChangePasswordPage } from "@/pages/auth/ChangePasswordPage";
 import { ForgotPasswordPage } from "@/pages/auth/ForgotPasswordPage";
+import { NoticesPage } from "@/pages/notices/NoticesPage";
+import { NoticeDetailPage } from "@/pages/notices/NoticeDetailPage";
 
 export const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
@@ -21,8 +23,8 @@ export const router = createBrowserRouter([
     ),
     children: [
       { path: "/", element: <RootRedirect /> },
-      { path: "/notices", element: <LoadingState /> }, // replaced by Notices session
-      { path: "/notices/:id", element: <LoadingState /> },
+      { path: "/notices", element: <NoticesPage /> },
+      { path: "/notices/:id", element: <NoticeDetailPage /> },
       { path: "/finance", element: <LoadingState /> }, // replaced by Finance session
       { path: "/complaints", element: <LoadingState /> }, // replaced by Complaints session
       { path: "/complaints/:id", element: <LoadingState /> },
