@@ -72,7 +72,8 @@ services:
         condition: service_healthy
     command: ["python", "-m", "app.worker.entrypoint"]
 
-  # frontend: built later (Next.js). Placeholder — not part of the backend-first stack.
+  # frontend: Vite + React SPA in ./frontend, run on the host (npm run dev, port 3000).
+  # Not containerized in this dev stack — it talks to the backend at http://localhost:8000.
 
 volumes:
   pgdata:
