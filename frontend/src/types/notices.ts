@@ -1,4 +1,4 @@
-// Shared shapes referenced by the stubbed noticesApi; the Notices session refines/extends.
+// Notices DTOs — verbatim against docs/api/notice-board.md. Residents only ever see "published".
 
 export type NoticeStatus = "draft" | "published" | "withdrawn";
 
