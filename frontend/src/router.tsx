@@ -7,6 +7,7 @@ import { LoginPage } from "@/pages/auth/LoginPage";
 import { ChoosePortalPage } from "@/pages/auth/ChoosePortalPage";
 import { ChangePasswordPage } from "@/pages/auth/ChangePasswordPage";
 import { ForgotPasswordPage } from "@/pages/auth/ForgotPasswordPage";
+import { NotificationsPage } from "@/pages/notifications/NotificationsPage";
 
 export const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
@@ -26,7 +27,7 @@ export const router = createBrowserRouter([
       { path: "/finance", element: <LoadingState /> }, // replaced by Finance session
       { path: "/complaints", element: <LoadingState /> }, // replaced by Complaints session
       { path: "/complaints/:id", element: <LoadingState /> },
-      { path: "/notifications", element: <LoadingState /> }, // replaced by Notifications session
+      { path: "/notifications", element: <NotificationsPage /> },
     ],
   },
   { path: "*", element: <Navigate to="/" replace /> },
